@@ -30,7 +30,7 @@ const seedData = async () => {
       email: 'admin@hospital.com',
       password: adminPassword,
       role: 'admin',
-      phone: '+1-800-555-0100'
+      phone: '+91-98765-00100'
     });
     console.log('✅ Admin Created: admin@hospital.com (Pass: Admin@123)');
 
@@ -40,7 +40,7 @@ const seedData = async () => {
       email: 'receptionist@hospital.com',
       password: recepPassword,
       role: 'receptionist',
-      phone: '+1-800-555-0101'
+      phone: '+91-98765-00101'
     });
     console.log('✅ Receptionist Created: receptionist@hospital.com (Pass: Recep@123)');
 
@@ -50,7 +50,7 @@ const seedData = async () => {
       email: 'patient@hospital.com',
       password: defaultPassword,
       role: 'patient',
-      phone: '+1-555-0199',
+      phone: '+91-98765-00199',
       isSeniorCitizen: false
     });
 
@@ -59,7 +59,7 @@ const seedData = async () => {
       email: 'senior@hospital.com',
       password: defaultPassword,
       role: 'patient',
-      phone: '+1-555-0188',
+      phone: '+91-98765-00188',
       isSeniorCitizen: true
     });
     console.log('✅ Patients Created: patient@hospital.com & senior@hospital.com (Pass: Password123)');
@@ -91,7 +91,7 @@ const seedData = async () => {
         email: docData.email,
         password: defaultPassword,
         role: 'doctor',
-        phone: '+1-555-0177'
+        phone: '+91-98765-00177'
       });
 
       const slots = [];

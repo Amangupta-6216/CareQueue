@@ -7,6 +7,7 @@ import SlotPicker from '../components/booking/SlotPicker';
 import DoctorProfileModal from '../components/booking/DoctorProfileModal';
 import BookingConfirmationModal from '../components/booking/BookingConfirmationModal';
 import RescheduleModal from '../components/booking/RescheduleModal';
+import { formatDoctorName } from '../utils/formatters';
 import { Calendar, Clock, Stethoscope, CheckCircle2, AlertCircle, Activity, UserCheck, RefreshCw, XCircle } from 'lucide-react';
 
 export const PatientDashboard = () => {
@@ -46,15 +47,24 @@ export const PatientDashboard = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleSlotUpdate = (data) => {
-      if (selectedDoctor && (data.doctorId === selectedDoctor._id || !data.doctorId)) {
-        fetchSlots(selectedDoctor._id, selectedDate);
-      }
-    };
-
     socket.on('appointment:statusChange', () => {
       fetchMyAppointments();
     });
+
+    const handleSlotUpdate = (data) => {
+      if (selectedDoctor && data.doctorId === selectedDoctor._id && data.date === selectedDate) {
+        setSlots(prevSlots => prevSlots.map(s => {
+          if (s._id === data.slotId) {
+            return {
+              ...s,
+              isBooked: data.isBooked,
+              remainingCapacity: data.remainingCapacity !== undefined ? data.remainingCapacity : s.remainingCapacity
+            };
+          }
+          return s;
+        }));
+      }
+    };
 
     socket.on('queue:update', () => {
       fetchMyAppointments();
@@ -69,7 +79,6 @@ export const PatientDashboard = () => {
       socket.off('slot:update', handleSlotUpdate);
     };
   }, [socket, selectedDoctor, selectedDate]);
-
 
   useEffect(() => {
     if (selectedDoctor) {
@@ -137,7 +146,6 @@ export const PatientDashboard = () => {
     }
   };
 
-
   const handleCheckIn = async (aptId) => {
     try {
       const res = await api.put(`/appointments/${aptId}/check-in`);
@@ -165,36 +173,38 @@ export const PatientDashboard = () => {
   return (
     <div className="space-y-8 py-6">
       {/* Header Banner */}
-      <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200/90 shadow-sm p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Patient Workspace</span>
-          <h1 className="text-2xl font-black text-white mt-1">Welcome, {user?.name}</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <span className="text-xs font-bold text-[#D87070] uppercase tracking-wider">Patient Workspace</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5">Welcome, {user?.name}</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {user?.isSeniorCitizen ? '⭐ Senior Citizen Priority Account Active' : 'Standard Patient Account'}
           </p>
         </div>
       </div>
 
       {message.text && (
-        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+        <div className={`p-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2.5 shadow-sm ${
           message.type === 'success'
-            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-            : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+            : 'bg-rose-50 border border-rose-200 text-rose-800'
         }`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
           <span>{message.text}</span>
         </div>
       )}
 
       {/* FRONT-AND-CENTER: Active / Upcoming Appointment Hero Card */}
       {activeAppointments.length > 0 && (
-        <div className="glass-panel p-6 rounded-3xl border border-sky-500/40 bg-gradient-to-r from-slate-900 via-sky-950/30 to-slate-900 space-y-4 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-sm font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
-              <Activity className="w-4 h-4 text-sky-400 animate-pulse" />
-              Active & Upcoming Appointments (Live Real-Time Tracker)
-            </h3>
-            <span className="text-xs text-slate-400">Auto-updating via Socket.io</span>
+        <div className="bg-white border border-[#F6B2B2]/60 shadow-md p-6 sm:p-8 rounded-3xl space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                Active & Upcoming Appointments (Live Real-Time Tracker)
+              </h3>
+            </div>
+            <span className="text-xs text-slate-400 hidden sm:inline">Auto-updating via Socket.io</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -203,47 +213,46 @@ export const PatientDashboard = () => {
               const estWait = pos ? (pos - 1) * 15 : null;
 
               return (
-                <div key={apt._id} className="glass-card p-5 rounded-2xl border border-slate-800 space-y-4 relative">
+                <div key={apt._id} className="bg-white border border-slate-200 shadow-sm p-5 rounded-2xl space-y-4 relative hover:border-slate-300 transition-all">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center shrink-0">
-                        <UserCheck className="w-6 h-6 text-sky-400" />
+                      <div className="w-12 h-12 rounded-xl bg-[#FDF0F2] border border-[#F6B2B2]/40 text-[#D87070] flex items-center justify-center shrink-0">
+                        <UserCheck className="w-6 h-6 text-[#D87070]" />
                       </div>
                       <div>
-                        <h4 className="text-base font-bold text-white">Dr. {apt.doctor?.user?.name || 'Specialist'}</h4>
-                        <p className="text-xs text-sky-400 font-semibold">{apt.doctor?.department}</p>
+                        <h4 className="text-base font-bold text-slate-900">{formatDoctorName(apt.doctor?.user?.name)}</h4>
+                        <p className="text-xs text-[#D87070] font-semibold">{apt.doctor?.department}</p>
                       </div>
                     </div>
 
                     {/* Status Badge */}
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                      apt.status === 'in-queue' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 animate-pulse' :
-                      apt.status === 'in-progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-bounce' :
-                      'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                      apt.status === 'in-queue' ? 'bg-[#FDF0F2] text-[#B55050] border border-[#F6B2B2]' :
+                      apt.status === 'in-progress' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                      'bg-amber-50 text-amber-800 border border-amber-200'
                     }`}>
                       {apt.status === 'in-queue' ? `In Queue (#${pos || 1})` : apt.status}
                     </span>
                   </div>
 
                   {/* Date & Live Queue Info */}
-                  <div className="grid grid-cols-2 gap-2 text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                  <div className="grid grid-cols-2 gap-2 text-xs p-3.5 bg-slate-50/80 rounded-xl border border-slate-100">
                     <div>
                       <span className="text-slate-500 block text-[10px] uppercase font-bold">Slot Time</span>
-                      <span className="text-white font-medium">{apt.date} @ {apt.startTime}</span>
+                      <span className="text-slate-900 font-semibold">{apt.date} @ {apt.startTime}</span>
                     </div>
                     <div>
                       <span className="text-slate-500 block text-[10px] uppercase font-bold">Estimated Wait</span>
-                      <span className="text-sky-400 font-bold">{estWait !== null ? `~${estWait} mins` : 'Check in to see wait time'}</span>
+                      <span className="text-[#D87070] font-bold">{estWait !== null ? `~${estWait} mins` : 'Check in to see wait'}</span>
                     </div>
                   </div>
 
-
                   {/* Actions Row */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                     {apt.status === 'booked' && (
                       <button
                         onClick={() => handleCheckIn(apt._id)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-xl text-xs shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 transition-all"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-xl text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all"
                       >
                         <CheckCircle2 className="w-4 h-4" />
                         Join Queue / Check-In
@@ -252,17 +261,17 @@ export const PatientDashboard = () => {
 
                     <button
                       onClick={() => setRescheduleApt(apt)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+                      className="px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors"
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+                      <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
                       Reschedule
                     </button>
 
                     <button
                       onClick={() => handleCancel(apt._id)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-1 border border-slate-700 hover:border-rose-500/40 transition-colors"
+                      className="px-3.5 py-2.5 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:border-rose-200 transition-colors"
                     >
-                      <XCircle className="w-3.5 h-3.5" />
+                      <XCircle className="w-3.5 h-3.5 text-rose-500" />
                       Cancel
                     </button>
                   </div>
@@ -279,7 +288,10 @@ export const PatientDashboard = () => {
         {/* Left 2 Cols: Doctor Browser */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-white">Find & Book Doctor</h2>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Find & Book Doctor</h2>
+              <p className="text-xs text-slate-500">Filter by clinical specialty and select your practitioner</p>
+            </div>
             
             {/* Department Filter Tabs */}
             <div className="flex flex-wrap gap-1.5">
@@ -287,10 +299,10 @@ export const PatientDashboard = () => {
                 <button
                   key={dept}
                   onClick={() => setSelectedDept(dept)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     selectedDept === dept
-                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                      : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                      ? 'bg-[#F6B2B2] text-slate-900 font-bold shadow-sm'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   {dept}
@@ -317,9 +329,9 @@ export const PatientDashboard = () => {
 
         {/* Right Col: Slot Picker & Booking Form */}
         <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
-            <h3 className="text-base font-bold text-white border-b border-slate-800 pb-3">
-              {selectedDoctor ? `Book with Dr. ${selectedDoctor.user?.name}` : 'Select a Doctor to View Slots'}
+          <div className="bg-white border border-slate-200/90 shadow-sm p-6 sm:p-7 rounded-3xl space-y-5">
+            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+              {selectedDoctor ? `Book with ${formatDoctorName(selectedDoctor.user?.name)}` : 'Select a Doctor to View Slots'}
             </h3>
 
             {selectedDoctor ? (
@@ -335,7 +347,7 @@ export const PatientDashboard = () => {
 
                 {!isOnLeave && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Reason for Visit
                     </label>
                     <input
@@ -343,7 +355,7 @@ export const PatientDashboard = () => {
                       value={reasonForVisit}
                       onChange={(e) => setReasonForVisit(e.target.value)}
                       placeholder="e.g. General checkup, Fever, Consultation"
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
                     />
                   </div>
                 )}
@@ -351,17 +363,17 @@ export const PatientDashboard = () => {
                 <button
                   onClick={() => setShowConfirmModal(true)}
                   disabled={!selectedSlot || bookingLoading || isOnLeave}
-                  className={`w-full py-3 rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 transition-all ${
+                  className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 ${
                     selectedSlot && !bookingLoading && !isOnLeave
-                      ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-sky-600/30'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
+                      ? 'bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
                   }`}
                 >
                   {isOnLeave ? 'Doctor On Leave (Booking Blocked)' : 'Review & Confirm Booking'}
                 </button>
               </>
             ) : (
-              <div className="text-center py-10 text-slate-500 text-xs">
+              <div className="text-center py-10 text-slate-400 text-xs">
                 Select any doctor on the left to browse available date slots.
               </div>
             )}
@@ -369,23 +381,22 @@ export const PatientDashboard = () => {
 
           {/* Past Appointment History */}
           {pastAppointments.length > 0 && (
-            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Past Appointment History</h3>
+            <div className="bg-white border border-slate-200/90 shadow-sm p-6 sm:p-7 rounded-3xl space-y-4">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Past Appointment History</h3>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {pastAppointments.map(apt => (
-                  <div key={apt._id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                  <div key={apt._id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-semibold text-white">Dr. {apt.doctor?.user?.name}</div>
-                      <div className="text-slate-400">{apt.date} • {apt.startTime}</div>
+                      <div className="font-semibold text-slate-900">{formatDoctorName(apt.doctor?.user?.name)}</div>
+                      <div className="text-slate-500 mt-0.5">{apt.date} • {apt.startTime}</div>
                     </div>
                     <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                      apt.status === 'done' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                      apt.status === 'no-show' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
-                      'bg-slate-800 text-slate-400 border border-slate-700'
+                      apt.status === 'done' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                      apt.status === 'no-show' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                      'bg-slate-100 text-slate-600 border border-slate-200'
                     }`}>
                       {apt.status}
                     </span>
-
                   </div>
                 ))}
               </div>
@@ -417,8 +428,6 @@ export const PatientDashboard = () => {
         onConfirm={handleConfirmBooking}
         loading={bookingLoading}
       />
-
-
 
       {/* Reschedule Modal */}
       <RescheduleModal

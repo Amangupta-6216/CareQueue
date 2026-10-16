@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
-import { Stethoscope, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Stethoscope, Lock, Mail, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const Login = () => {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(location.state?.prefillEmail || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState(location.state?.successMessage || '');
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // If redirected with state, keep inputs updated
+  useEffect(() => {
+    if (location.state?.prefillEmail) {
+      setEmail(location.state.prefillEmail);
+    }
+    if (location.state?.successMessage) {
+      setSuccessMsg(location.state.successMessage);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,10 +31,12 @@ export const Login = () => {
     setLoading(true);
 
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', { 
+        email: email.trim().toLowerCase(), 
+        password 
+      });
       login(res.data);
 
-      // Redirect to appropriate dashboard based on role
       switch (res.data.role) {
         case 'patient': navigate('/dashboard/patient'); break;
         case 'doctor': navigate('/dashboard/doctor'); break;
@@ -31,67 +45,83 @@ export const Login = () => {
         default: navigate('/'); break;
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please check credentials.');
+      const errorMsg =
+        err.response?.data?.errors && Array.isArray(err.response.data.errors)
+          ? err.response.data.errors.map((e) => e.message).join('. ')
+          : err.response?.data?.message || 'Login failed. Please check credentials.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick Demo Login Helper for Testing
-  const quickFill = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-  };
-
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-8">
-      <div className="glass-panel p-8 rounded-3xl border border-slate-800 w-full max-w-md space-y-6 shadow-2xl">
+    <div className="min-h-[80vh] flex items-center justify-center py-8 px-4">
+      <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200/80 w-full max-w-md space-y-6 shadow-xl shadow-slate-200/50">
+        
+        {/* Header */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center mx-auto shadow-lg shadow-sky-500/20">
-            <Stethoscope className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-2xl bg-[#FDF0F2] border border-[#F6B2B2]/40 text-[#D87070] flex items-center justify-center mx-auto shadow-sm">
+            <Stethoscope className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-black text-white">Sign In to CareQueue</h2>
-          <p className="text-xs text-slate-400">Access your personalized portal and live appointments</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Sign In to CareQueue</h2>
+          <p className="text-xs text-slate-500 font-normal">Access your personalized portal and live appointments</p>
         </div>
 
-        {error && (
-          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-3 rounded-xl text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+        {/* Success Message Banner */}
+        {successMsg && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl text-xs flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            <span className="font-medium">{successMsg}</span>
           </div>
         )}
 
+        {/* Error Message Banner */}
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3.5 rounded-xl text-xs flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            <span className="font-medium">{error}</span>
+          </div>
+        )}
+
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 placeholder="name@hospital.com"
-                className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 placeholder="••••••••"
-                className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -99,52 +129,47 @@ export const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-sky-600/30 flex items-center justify-center gap-2 transition-all"
+            className="w-full bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 transform hover:-translate-y-0.5"
           >
             {loading ? 'Signing in...' : 'Sign In'}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        {/* Quick Demo Fill Buttons */}
-        <div className="pt-4 border-t border-slate-800 space-y-2">
-          <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
-            Quick Fill Demo Credentials
-          </span>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              onClick={() => quickFill('patient@hospital.com', 'Password123')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-lg border border-slate-700 font-medium text-left truncate"
+        {/* Registration Options Footer */}
+        <div className="pt-3 border-t border-slate-100 text-center space-y-2.5">
+          <p className="text-xs text-slate-600">
+            Don't have an account?{' '}
+            <Link to="/register" className="text-[#D87070] font-bold hover:underline">
+              Create an Account
+            </Link>
+          </p>
+          
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-medium">
+            <span>Register as:</span>
+            <Link 
+              to="/register?role=patient" 
+              className="text-slate-700 hover:text-[#D87070] px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-[#FDF0F2] border border-slate-200 transition-colors"
             >
-              👤 Patient
-            </button>
-            <button
-              onClick={() => quickFill('sharma@hospital.com', 'Password123')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-lg border border-slate-700 font-medium text-left truncate"
+              Patient
+            </Link>
+            <span className="text-slate-300">•</span>
+            <Link 
+              to="/register?role=doctor" 
+              className="text-slate-700 hover:text-[#D87070] px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-[#FDF0F2] border border-slate-200 transition-colors"
             >
-              👨‍⚕️ Doctor (Sharma)
-            </button>
-            <button
-              onClick={() => quickFill('receptionist@hospital.com', 'Recep@123')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-lg border border-slate-700 font-medium text-left truncate"
+              Doctor
+            </Link>
+            <span className="text-slate-300">•</span>
+            <Link 
+              to="/register?role=receptionist" 
+              className="text-slate-700 hover:text-[#D87070] px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-[#FDF0F2] border border-slate-200 transition-colors"
             >
-              📋 Receptionist
-            </button>
-            <button
-              onClick={() => quickFill('admin@hospital.com', 'Admin@123')}
-              className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg border border-slate-700 font-medium text-left truncate"
-            >
-              ⚡ Admin
-            </button>
+              Receptionist
+            </Link>
           </div>
         </div>
 
-        <div className="text-center pt-2 text-xs text-slate-400">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-sky-400 font-semibold hover:underline">
-            Register as Patient
-          </Link>
-        </div>
       </div>
     </div>
   );

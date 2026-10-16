@@ -20,22 +20,48 @@ export const App = () => {
     <AuthProvider>
       <SocketProvider>
         <Router>
-          <div className="min-h-screen flex flex-col">
+          <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-slate-800 font-sans">
             <Navbar />
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
+            <main className="flex-1 w-full">
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/unauthorized" element={<Unauthorized />} />
+                
+                <Route 
+                  path="/login" 
+                  element={
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <Login />
+                    </div>
+                  } 
+                />
+                
+                <Route 
+                  path="/register" 
+                  element={
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <Register />
+                    </div>
+                  } 
+                />
+                
+                <Route 
+                  path="/unauthorized" 
+                  element={
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <Unauthorized />
+                    </div>
+                  } 
+                />
 
                 {/* Role Protected Dashboards */}
                 <Route
                   path="/dashboard/patient"
                   element={
                     <ProtectedRoute allowedRoles={['patient', 'admin']}>
-                      <PatientDashboard />
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <PatientDashboard />
+                      </div>
                     </ProtectedRoute>
                   }
                 />
@@ -44,7 +70,9 @@ export const App = () => {
                   path="/dashboard/doctor"
                   element={
                     <ProtectedRoute allowedRoles={['doctor', 'admin']}>
-                      <DoctorDashboard />
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <DoctorDashboard />
+                      </div>
                     </ProtectedRoute>
                   }
                 />
@@ -53,7 +81,9 @@ export const App = () => {
                   path="/dashboard/receptionist"
                   element={
                     <ProtectedRoute allowedRoles={['receptionist', 'admin']}>
-                      <ReceptionistDashboard />
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <ReceptionistDashboard />
+                      </div>
                     </ProtectedRoute>
                   }
                 />
@@ -62,18 +92,23 @@ export const App = () => {
                   path="/dashboard/admin"
                   element={
                     <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminDashboard />
+                      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <AdminDashboard />
+                      </div>
                     </ProtectedRoute>
                   }
                 />
 
-                <Route path="*" element={<NotFound />} />
+                <Route 
+                  path="*" 
+                  element={
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <NotFound />
+                    </div>
+                  } 
+                />
               </Routes>
             </main>
-            
-            <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-              © {new Date().getFullYear()} CareQueue Systems — Real-time Priority Doctor Queue & Booking
-            </footer>
           </div>
         </Router>
       </SocketProvider>

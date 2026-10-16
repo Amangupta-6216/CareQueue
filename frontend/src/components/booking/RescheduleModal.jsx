@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { formatDoctorName } from '../../utils/formatters';
 import SlotPicker from './SlotPicker';
 import { Calendar, Clock, X, AlertCircle } from 'lucide-react';
 
@@ -57,22 +58,22 @@ export const RescheduleModal = ({ appointment, isOpen, onClose, onRescheduleSucc
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="glass-panel p-6 rounded-3xl border border-sky-500/40 max-w-lg w-full space-y-5 relative shadow-2xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 max-w-lg w-full space-y-5 relative shadow-2xl text-slate-900">
         
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
-            <h3 className="text-base font-bold text-white">Reschedule Appointment</h3>
-            <p className="text-xs text-sky-400">Dr. {doctorName}</p>
+            <h3 className="text-base font-bold text-slate-900">Reschedule Appointment</h3>
+            <p className="text-xs text-[#D87070] font-medium">{formatDoctorName(doctorName)}</p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-full text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             <span>{error}</span>
           </div>
         )}
@@ -86,20 +87,22 @@ export const RescheduleModal = ({ appointment, isOpen, onClose, onRescheduleSucc
           isOnLeave={isOnLeave}
         />
 
-        <div className="flex items-center space-x-3 pt-3 border-t border-slate-800">
+        <div className="flex items-center space-x-3 pt-3 border-t border-slate-100">
           <button
+            type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors"
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleConfirmReschedule}
             disabled={!selectedSlot || loading || isOnLeave}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all ${
+            className={`flex-1 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all ${
               selectedSlot && !loading && !isOnLeave
-                ? 'bg-sky-600 hover:bg-sky-500 text-white shadow-sky-600/30'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800'
+                ? 'bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
             }`}
           >
             {loading ? 'Rescheduling...' : 'Confirm Reschedule'}

@@ -4,6 +4,7 @@ import { useSocket } from '../hooks/useSocket';
 import api from '../services/api';
 import NextPatientCard from '../components/queue/NextPatientCard';
 import LiveQueueList from '../components/queue/LiveQueueList';
+import { formatDoctorName } from '../utils/formatters';
 import { Stethoscope, Users, CheckCircle2, Clock, Calendar, AlertCircle, PlaneTakeoff } from 'lucide-react';
 
 export const DoctorDashboard = () => {
@@ -75,24 +76,31 @@ export const DoctorDashboard = () => {
         seenToday: stats.seenToday
       });
     } catch (err) {
-      console.error('Error fetching live queue:', err);
+      console.error('Error fetching doctor queue:', err);
     }
   };
 
   const handleCallNext = async () => {
     if (!doctorInfo) return;
     try {
-      const res = await api.put(`/queue/${doctorInfo._id}/next`);
+      const res = await api.post(`/queue/${doctorInfo._id}/next`);
       setMessage({ type: 'success', text: res.data.message });
-      setStats(prev => ({ ...prev, seenToday: prev.seenToday + 1 }));
       fetchLiveQueue(doctorInfo._id);
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Error calling next patient' });
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Error calling next patient.' });
     }
   };
 
   const handleMarkDone = async () => {
-    handleCallNext(); // Automatically marks current done and advances
+    if (!doctorInfo || !inProgressPatient) return;
+    try {
+      await api.put(`/queue/${doctorInfo._id}/done/${inProgressPatient.appointmentId}`);
+      setStats(prev => ({ ...prev, seenToday: prev.seenToday + 1 }));
+      setMessage({ type: 'success', text: 'Consultation completed successfully!' });
+      fetchLiveQueue(doctorInfo._id);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Error marking consultation as done.' });
+    }
   };
 
   const handleNoShow = async (appointmentId) => {
@@ -129,7 +137,7 @@ export const DoctorDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-sky-500"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#D87070]"></div>
       </div>
     );
   }
@@ -137,35 +145,35 @@ export const DoctorDashboard = () => {
   return (
     <div className="space-y-8 py-6">
       {/* Header Banner */}
-      <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200/90 shadow-sm p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Doctor Dashboard</span>
-          <h1 className="text-2xl font-black text-white mt-1">Welcome, Dr. {user?.name}</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Department: <span className="text-sky-400 font-semibold">{doctorInfo?.department || 'General Medicine'}</span>
+          <span className="text-xs font-bold text-[#D87070] uppercase tracking-wider">Doctor Dashboard</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5">Welcome, {formatDoctorName(user?.name)}</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Department: <span className="text-[#D87070] font-semibold">{doctorInfo?.department || 'General Medicine'}</span>
           </p>
         </div>
 
         {/* Stats Pills */}
         <div className="flex items-center gap-3">
-          <div className="glass-card px-4 py-2 rounded-2xl border border-slate-800 text-center">
-            <span className="block text-xl font-bold text-white">{queue.length}</span>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase">Waiting</span>
+          <div className="bg-slate-50 border border-slate-200 shadow-sm px-5 py-2.5 rounded-2xl text-center">
+            <span className="block text-2xl font-black text-slate-900">{queue.length}</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Waiting</span>
           </div>
-          <div className="glass-card px-4 py-2 rounded-2xl border border-slate-800 text-center">
-            <span className="block text-xl font-bold text-emerald-400">{stats.seenToday}</span>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase">Seen Today</span>
+          <div className="bg-slate-50 border border-slate-200 shadow-sm px-5 py-2.5 rounded-2xl text-center">
+            <span className="block text-2xl font-black text-emerald-600">{stats.seenToday}</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Seen Today</span>
           </div>
         </div>
       </div>
 
       {message.text && (
-        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+        <div className={`p-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2.5 shadow-sm ${
           message.type === 'success'
-            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-            : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+            : 'bg-rose-50 border border-rose-200 text-rose-800'
         }`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
           <span>{message.text}</span>
         </div>
       )}
@@ -185,11 +193,11 @@ export const DoctorDashboard = () => {
         {/* Left 2 Cols: Live MinHeap Priority Queue */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-sky-400" />
-              Live Waiting Queue (Min-Heap Priority Order)
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#D87070]" />
+              Live Waiting Queue (Priority Triage Order)
             </h3>
-            <span className="text-xs text-slate-400">{queue.length} Patients Waiting</span>
+            <span className="text-xs font-semibold text-slate-500">{queue.length} Patients Waiting</span>
           </div>
 
           <LiveQueueList
@@ -201,15 +209,20 @@ export const DoctorDashboard = () => {
 
         {/* Right Col: Leave Request & Availability Panel */}
         <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <PlaneTakeoff className="w-5 h-5 text-amber-400" />
-              Request Leave / Schedule Off
-            </h3>
+          <div className="bg-white border border-slate-200/90 shadow-sm p-6 sm:p-7 rounded-3xl space-y-5">
+            <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+                <PlaneTakeoff className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Request Leave / Schedule Off</h3>
+                <p className="text-xs text-slate-500">Block slot bookings for selected dates</p>
+              </div>
+            </div>
             
             <form onSubmit={handleLeaveRequest} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Leave Date
                 </label>
                 <input
@@ -217,12 +230,12 @@ export const DoctorDashboard = () => {
                   required
                   value={leaveDate}
                   onChange={(e) => setLeaveDate(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Reason for Leave
                 </label>
                 <textarea
@@ -231,35 +244,35 @@ export const DoctorDashboard = () => {
                   value={leaveReason}
                   onChange={(e) => setLeaveReason(e.target.value)}
                   placeholder="e.g. Medical conference, personal emergency..."
-                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-amber-600/20 text-xs transition-all"
+                className="w-full bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 font-bold py-3 rounded-xl shadow-md text-xs transition-all transform hover:-translate-y-0.5"
               >
                 Submit Leave Request
               </button>
             </form>
 
             {/* List of Doctor's Submitted Leave Requests */}
-            <div className="pt-4 border-t border-slate-800 space-y-2">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">My Submitted Leave Requests</h4>
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">My Submitted Leave Requests</h4>
               {!doctorInfo?.leaveRequests || doctorInfo.leaveRequests.length === 0 ? (
-                <p className="text-xs text-slate-500">No leave requests submitted yet.</p>
+                <p className="text-xs text-slate-400">No leave requests submitted yet.</p>
               ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {doctorInfo.leaveRequests.map((req, idx) => (
-                    <div key={req._id || idx} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                    <div key={req._id || idx} className="p-3 bg-slate-50/80 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
                       <div>
-                        <div className="font-bold text-white">{req.date}</div>
-                        <div className="text-slate-400 text-[11px]">{req.reason}</div>
+                        <div className="font-bold text-slate-900">{req.date}</div>
+                        <div className="text-slate-500 text-[11px] mt-0.5">{req.reason}</div>
                       </div>
                       <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                        req.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                        req.status === 'rejected' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
-                        'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                        req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        req.status === 'rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        'bg-amber-50 text-amber-800 border border-amber-200'
                       }`}>
                         {req.status}
                       </span>
@@ -275,6 +288,5 @@ export const DoctorDashboard = () => {
     </div>
   );
 };
-
 
 export default DoctorDashboard;

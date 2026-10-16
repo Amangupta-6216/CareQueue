@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useSocket } from '../../hooks/useSocket';
-import { Bell, LogOut, Stethoscope, LayoutDashboard, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Bell, LogOut, LayoutDashboard, User } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
-  const { socket, connected } = useSocket();
+  const { socket } = useSocket();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [notifications, setNotifications] = useState([]);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -31,8 +32,8 @@ export const Navbar = () => {
     socket.on('doctor:nextPatient', handleNextPatient);
 
     return () => {
-      socket.off('appointment:statusChange', handleStatusChange);
-      socket.off('doctor:nextPatient', handleNextPatient);
+      socket.off('appointment:statusChange');
+      socket.off('doctor:nextPatient');
     };
   }, [socket, user]);
 
@@ -62,131 +63,149 @@ export const Navbar = () => {
     }
   };
 
-  const roleColors = {
-    patient: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-    doctor: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-    receptionist: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    admin: 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+  const scrollToSection = (id) => {
+    if (location.pathname !== '/') {
+      navigate('/');
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   return (
-    <nav className="glass-panel sticky top-0 z-50 border-b border-slate-800 px-4 lg:px-8 py-3">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform">
-            <Stethoscope className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-sky-400">
-              CareQueue
-            </span>
-            <span className="block text-[10px] uppercase font-semibold text-sky-400 tracking-wider">
-              Smart Hospital Queue
-            </span>
-          </div>
-        </Link>
+    <header className="sticky top-0 z-50 w-full shadow-sm">
+      {/* Top Announcement Bar */}
+      <div className="bg-[#FAD4D4] text-slate-800 text-xs font-medium py-1.5 px-4 text-center tracking-wide">
+        Gentle care for every patient.
+      </div>
 
-        {/* Live Socket Status */}
-        <div className="hidden md:flex items-center space-x-2 text-xs text-slate-400 glass-card px-3 py-1.5 rounded-full border border-slate-800">
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`}></span>
-          <span>{connected ? 'Real-Time Sync Active' : 'Connecting...'}</span>
-        </div>
+      {/* Main Navbar */}
+      <nav className="bg-white border-b border-slate-100 px-6 lg:px-12 py-3.5 transition-colors">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          
+          {/* Brand Logo */}
+          <Link to="/" className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 hover:opacity-90 transition-opacity">
+            CareQueue
+          </Link>
 
-        {/* Nav Links & User Controls */}
-        <div className="flex items-center space-x-4">
-          {user ? (
-            <>
-              <Link
-                to={getDashboardPath()}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4 text-sky-400" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </Link>
+          {/* Navigation Links & Actions */}
+          <div className="flex items-center space-x-6 sm:space-x-8 text-sm font-medium text-slate-700">
+            <Link 
+              to="/" 
+              className={`hover:text-slate-950 transition-colors pb-0.5 ${location.pathname === '/' ? 'text-slate-950 border-b-2 border-slate-900 font-semibold' : ''}`}
+            >
+              Home
+            </Link>
 
-              {/* Notification Bell Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowNotifMenu(!showNotifMenu);
-                    setUnreadCount(0);
-                  }}
-                  className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 relative transition-colors"
-                  title="Live Notifications"
+            <button 
+              type="button"
+              onClick={() => scrollToSection('about-us')}
+              className="hover:text-slate-950 transition-colors hidden md:inline-block"
+            >
+              About Us
+            </button>
+
+            <button 
+              type="button"
+              onClick={() => scrollToSection('our-services')}
+              className="hover:text-slate-950 transition-colors hidden md:inline-block"
+            >
+              Our Services
+            </button>
+
+            <button 
+              type="button"
+              onClick={() => scrollToSection('contact-us')}
+              className="hover:text-slate-950 transition-colors hidden md:inline-block"
+            >
+              Contact Us
+            </button>
+
+            {user ? (
+              <div className="flex items-center space-x-3">
+                <Link
+                  to={getDashboardPath()}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 hover:bg-slate-200 transition-colors"
                 >
-                  <Bell className="w-5 h-5 text-sky-400" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center animate-bounce">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Dashboard</span>
+                </Link>
 
-                {showNotifMenu && (
-                  <div className="absolute right-0 mt-2 w-72 glass-panel p-4 rounded-2xl border border-slate-700 shadow-2xl space-y-3 z-50 bg-slate-900">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">Live Status Alerts</span>
-                      <span className="text-[10px] text-slate-400">{notifications.length} alerts</span>
-                    </div>
-
-                    {notifications.length === 0 ? (
-                      <div className="text-center py-4 text-xs text-slate-500">No new alerts yet.</div>
-                    ) : (
-                      <div className="space-y-2 max-h-56 overflow-y-auto">
-                        {notifications.map((n) => (
-                          <div key={n.id} className="p-2.5 bg-slate-800/80 rounded-xl text-xs space-y-0.5 border border-slate-700/50">
-                            <div className="text-slate-200 font-medium">{n.text}</div>
-                            <div className="text-[10px] text-slate-400">{n.time}</div>
-                          </div>
-                        ))}
-                      </div>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowNotifMenu(!showNotifMenu);
+                      setUnreadCount(0);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 relative transition-colors"
+                    title="Live Notifications"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
+                        {unreadCount}
+                      </span>
                     )}
-                  </div>
-                )}
-              </div>
+                  </button>
 
-              {/* Role Badge */}
-              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border uppercase tracking-wider ${roleColors[user.role]}`}>
-                {user.role}
-              </span>
+                  {showNotifMenu && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 space-y-3 z-50 text-slate-800">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Notifications</span>
+                        <span className="text-[10px] text-slate-400">{notifications.length} alerts</span>
+                      </div>
 
-              {/* User Profile */}
-              <div className="flex items-center space-x-2 border-l border-slate-800 pl-4">
-                <div className="text-right hidden sm:block">
-                  <div className="text-sm font-medium text-white">{user.name}</div>
-                  <div className="text-xs text-slate-400">{user.email}</div>
+                      {notifications.length === 0 ? (
+                        <div className="text-center py-4 text-xs text-slate-400">No new alerts yet.</div>
+                      ) : (
+                        <div className="space-y-2 max-h-56 overflow-y-auto">
+                          {notifications.map((n) => (
+                            <div key={n.id} className="p-2 bg-slate-50 rounded-xl text-xs border border-slate-100">
+                              <div className="text-slate-800 font-medium">{n.text}</div>
+                              <div className="text-[10px] text-slate-400">{n.time}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
                 <button
                   onClick={handleLogout}
                   title="Logout"
-                  className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
-            </>
-          ) : (
-            <div className="flex items-center space-x-3">
-              <Link
-                to="/login"
-                className="text-sm font-medium text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/register"
-                className="text-sm font-semibold bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-xl shadow-lg shadow-sky-600/25 transition-all transform hover:-translate-y-0.5"
-              >
-                Register as Patient
-              </Link>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex items-center space-x-3">
+                <Link
+                  to="/login"
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1.5 transition-colors hidden sm:inline-block"
+                >
+                  Sign In
+                </Link>
 
-      </div>
-    </nav>
+                <Link
+                  to="/register"
+                  className="bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm shadow-sm transition-all transform hover:-translate-y-0.5"
+                >
+                  Book Appointment
+                </Link>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </nav>
+    </header>
   );
 };
 

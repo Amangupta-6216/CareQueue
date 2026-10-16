@@ -20,7 +20,7 @@ const bookAppointment = async (req, res) => {
     if (['receptionist', 'admin'].includes(req.user.role) && patientId) {
       targetPatientId = patientId;
       bookedBy = req.user.role;
-    }
+    }                                               
 
     const patientUser = await User.findById(targetPatientId);
     if (!patientUser) {
@@ -53,7 +53,6 @@ const bookAppointment = async (req, res) => {
         });
       }
     }
-
     
     // 1. ATOMIC DOUBLE-BOOKING GUARD
     const updatedDoctor = await Doctor.findOneAndUpdate(
@@ -67,7 +66,6 @@ const bookAppointment = async (req, res) => {
       },
       { new: true }
     );
-
 
     if (!updatedDoctor) {
       return res.status(409).json({
@@ -95,7 +93,7 @@ const bookAppointment = async (req, res) => {
         populate: { path: 'user', select: 'name email' }
       })
       .populate('patient', 'name email phone isSeniorCitizen');
-
+      
     // Send confirmation email asynchronously
     sendEmail({
       to: patientUser.email,
@@ -123,7 +121,6 @@ const bookAppointment = async (req, res) => {
     res.status(500).json({ message: 'Server error booking appointment' });
   }
 };
-
 
 // @desc    Register a Walk-In patient & immediately place into priority queue
 // @route   POST /api/appointments/walk-in

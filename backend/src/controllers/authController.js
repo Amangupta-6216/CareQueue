@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const Doctor = require('../models/Doctor');
 
 const generateToken = (id) => {
   return jwt.sign(
@@ -10,12 +11,27 @@ const generateToken = (id) => {
   );
 };
 
-// @desc    Register a new patient
+// @desc    Register a new user (Patient, Doctor, or Receptionist)
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, phone, isSeniorCitizen } = req.body;
+    const { 
+      name, 
+      email, 
+      password, 
+      phone, 
+      role = 'patient', 
+      isSeniorCitizen,
+      department,
+      specialization,
+      qualification,
+      consultationFee 
+    } = req.body;
+
+    // Only allow self-registration for patient, doctor, and receptionist
+    const allowedRoles = ['patient', 'doctor', 'receptionist'];
+    const assignedRole = allowedRoles.includes(role) ? role : 'patient';
 
     const userExists = await User.findOne({ email: email.toLowerCase() });
     if (userExists) {
@@ -29,10 +45,50 @@ const registerUser = async (req, res) => {
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: 'patient',
+      role: assignedRole,
       phone: phone || '',
-      isSeniorCitizen: Boolean(isSeniorCitizen)
+      isSeniorCitizen: assignedRole === 'patient' ? Boolean(isSeniorCitizen) : false
     });
+
+    // If registering as a doctor, create Doctor profile & generate 14-day consultation slots
+    if (assignedRole === 'doctor') {
+      const datesToSeed = [];
+      const today = new Date();
+      for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + dayOffset);
+        datesToSeed.push(d.toISOString().split('T')[0]);
+      }
+
+      const slots = [];
+      for (const dStr of datesToSeed) {
+        const startHours = [9, 10, 11, 14, 15, 16];
+        for (const hour of startHours) {
+          slots.push({
+            date: dStr,
+            startTime: `${hour.toString().padStart(2, '0')}:00`,
+            endTime: `${hour.toString().padStart(2, '0')}:30`,
+            isBooked: false
+          });
+          slots.push({
+            date: dStr,
+            startTime: `${hour.toString().padStart(2, '0')}:30`,
+            endTime: `${(hour + 1).toString().padStart(2, '0')}:00`,
+            isBooked: false
+          });
+        }
+      }
+
+      await Doctor.create({
+        user: user._id,
+        department: department || 'General Medicine',
+        specialization: specialization || 'General Practice',
+        qualification: qualification || 'MBBS, MD',
+        consultationFee: consultationFee ? Number(consultationFee) : 500,
+        availableSlots: slots,
+        onLeave: false
+      });
+    }
 
     if (user) {
       res.status(201).json({
