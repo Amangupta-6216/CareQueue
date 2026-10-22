@@ -56,12 +56,13 @@ const getIO = () => {
 /**
  * Emits live queue updates to doctor room, reception room, and listening clients.
  */
-const emitQueueUpdate = (doctorId, queueData) => {
+const emitQueueUpdate = (doctorId, queueData, extra = {}) => {
   if (!io) return;
   const roomName = `doctor:${doctorId}`;
   io.to(roomName).to('room:reception').emit('queue:update', {
     doctorId,
     queue: queueData,
+    ...extra,
     timestamp: new Date()
   });
 };

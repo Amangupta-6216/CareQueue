@@ -10,12 +10,53 @@ const {
 
 const AVG_CONSULTATION_MINS = 15;
 
-// @desc    Get live sorted queue snapshot for a doctor
+/**
+ * Calculates completed consultations for a specific doctor on a specific date.
+ * Counts unique consultations that were scheduled for that date OR completed during that calendar day.
+ */
+const getSeenCountForDate = async (doctorId, requestedDate) => {
+  try {
+    const targetDate = requestedDate || new Date().toISOString().split('T')[0];
+    const startOfDay = new Date(targetDate + 'T00:00:00');
+    const endOfDay = new Date(targetDate + 'T23:59:59.999');
+
+    // Count done appointments for this doctor on this date
+    const doneApts = await Appointment.find({
+      doctor: doctorId,
+      status: 'done',
+      $or: [
+        { date: targetDate },
+        { updatedAt: { $gte: startOfDay, $lte: endOfDay } }
+      ]
+    }).select('_id');
+
+    const doneAptIds = doneApts.map(a => a._id.toString());
+
+    // Also check QueueEntry
+    const doneQEs = await QueueEntry.find({
+      doctorId,
+      status: 'done',
+      updatedAt: { $gte: startOfDay, $lte: endOfDay }
+    }).select('appointmentId');
+
+    const doneQEIds = doneQEs.map(q => q.appointmentId ? q.appointmentId.toString() : null).filter(Boolean);
+
+    const allSeenIds = new Set([...doneAptIds, ...doneQEIds]);
+    return Math.max(allSeenIds.size, doneApts.length, doneQEs.length);
+  } catch (error) {
+    console.error('getSeenCountForDate error:', error);
+    return 0;
+  }
+};
+
+// @desc    Get live sorted queue snapshot for a doctor for a specific date
 // @route   GET /api/queue/:doctorId
 // @access  Public (Authenticated/Role-scoped)
 const getLiveQueue = async (req, res) => {
   try {
     const { doctorId } = req.params;
+    const requestedDate = req.query.date || new Date().toISOString().split('T')[0];
+
     const sortedQueue = queueManager.toSortedList(doctorId);
 
     // Calculate estimated wait times for each patient in queue
@@ -34,11 +75,26 @@ const getLiveQueue = async (req, res) => {
       .populate('appointmentId')
       .lean();
 
+    // Calculate patients seen for the specified date
+    const seenTodayCount = await getSeenCountForDate(doctorId, requestedDate);
+
+    // Fetch all scheduled appointments for this doctor on requestedDate
+    const scheduledAppointments = await Appointment.find({
+      doctor: doctorId,
+      date: requestedDate
+    })
+      .populate('patient', 'name email phone isSeniorCitizen')
+      .sort({ startTime: 1 })
+      .lean();
+
     res.json({
       doctorId,
+      date: requestedDate,
       count: queueWithEstimates.length,
+      seenToday: seenTodayCount,
       inProgressPatient: inProgressEntry || null,
-      queue: queueWithEstimates
+      queue: queueWithEstimates,
+      appointments: scheduledAppointments
     });
   } catch (error) {
     console.error('getLiveQueue error:', error);
@@ -47,7 +103,7 @@ const getLiveQueue = async (req, res) => {
 };
 
 // @desc    Advance queue / Call next patient for consultation
-// @route   PUT /api/queue/:doctorId/next
+// @route   PUT /api/queue/:doctorId/next or POST /api/queue/:doctorId/next
 // @access  Doctor / Admin
 const advanceNextPatient = async (req, res) => {
   try {
@@ -76,13 +132,17 @@ const advanceNextPatient = async (req, res) => {
     // 2. Extract next patient with lowest priorityScore (highest urgency) from MinHeap
     const nextPatientNode = queueManager.getNextPatient(doctorId);
 
+    // Update seen count
+    const seenCount = await getSeenCountForDate(doctorId);
+
     if (!nextPatientNode) {
       // Queue is now empty
       const updatedQueue = queueManager.toSortedList(doctorId);
-      emitQueueUpdate(doctorId, updatedQueue);
+      emitQueueUpdate(doctorId, updatedQueue, { seenToday: seenCount });
       return res.json({
         message: 'Queue is clear. No more waiting patients.',
         nextPatient: null,
+        seenToday: seenCount,
         queue: updatedQueue
       });
     }
@@ -98,9 +158,9 @@ const advanceNextPatient = async (req, res) => {
       { new: true }
     ).populate('patient', 'name email phone isSeniorCitizen');
 
-    // 4. Emit real-time Socket updates
+    // 4. Emit real-time Socket updates with updated seenToday count
     const updatedQueue = queueManager.toSortedList(doctorId);
-    emitQueueUpdate(doctorId, updatedQueue);
+    emitQueueUpdate(doctorId, updatedQueue, { seenToday: seenCount });
     emitDoctorNextPatient(doctorId, {
       appointment: updatedAppointment,
       queueNode: nextPatientNode
@@ -113,11 +173,66 @@ const advanceNextPatient = async (req, res) => {
     res.json({
       message: 'Next patient called successfully',
       nextPatient: updatedAppointment,
+      seenToday: seenCount,
       queue: updatedQueue
     });
   } catch (error) {
     console.error('advanceNextPatient error:', error);
     res.status(500).json({ message: 'Error advancing queue to next patient' });
+  }
+};
+
+// @desc    Mark in-progress consultation as done
+// @route   PUT /api/queue/:doctorId/done/:appointmentId
+// @access  Doctor / Admin
+const markDone = async (req, res) => {
+  try {
+    const { doctorId, appointmentId } = req.params;
+
+    let targetAptId = (appointmentId && appointmentId !== '[object Object]') ? appointmentId : null;
+
+    // Find in-progress entry for this doctor
+    const currentInProgress = await QueueEntry.findOne({
+      doctorId,
+      status: 'in-progress'
+    });
+
+    if (currentInProgress) {
+      currentInProgress.status = 'done';
+      await currentInProgress.save();
+
+      const aptIdToUpdate = currentInProgress.appointmentId || targetAptId;
+
+      if (aptIdToUpdate) {
+        await Appointment.findByIdAndUpdate(aptIdToUpdate, {
+          status: 'done'
+        });
+        queueManager.removeFromQueue(doctorId, aptIdToUpdate);
+      }
+
+      emitPatientStatusChange(currentInProgress.patientId, {
+        appointmentId: currentInProgress.appointmentId,
+        status: 'done'
+      });
+    } else if (targetAptId) {
+      await Appointment.findByIdAndUpdate(targetAptId, {
+        status: 'done'
+      });
+      queueManager.removeFromQueue(doctorId, targetAptId);
+    }
+
+    const seenCount = await getSeenCountForDate(doctorId);
+    const updatedQueue = queueManager.toSortedList(doctorId);
+    emitQueueUpdate(doctorId, updatedQueue, { seenToday: seenCount });
+
+    res.json({
+      message: 'Consultation completed successfully!',
+      seenToday: seenCount,
+      queue: updatedQueue
+    });
+  } catch (error) {
+    console.error('markDone error:', error);
+    res.status(500).json({ message: 'Error marking consultation as done' });
   }
 };
 
@@ -128,33 +243,45 @@ const markNoShow = async (req, res) => {
   try {
     const { doctorId, appointmentId } = req.params;
 
+    let targetAptId = (appointmentId && appointmentId !== '[object Object]') ? appointmentId : null;
+
+    if (!targetAptId) {
+      const inProg = await QueueEntry.findOne({ doctorId, status: 'in-progress' });
+      if (inProg) targetAptId = inProg.appointmentId;
+    }
+
+    if (!targetAptId) {
+      return res.status(400).json({ message: 'No appointment found to mark no-show' });
+    }
+
     // Update appointment status
     const appointment = await Appointment.findByIdAndUpdate(
-      appointmentId,
+      targetAptId,
       { status: 'no-show' },
       { new: true }
     );
 
     // Update QueueEntry status
     await QueueEntry.findOneAndUpdate(
-      { appointmentId },
+      { appointmentId: targetAptId },
       { status: 'no-show' }
     );
 
     // Remove from in-memory MinHeap
-    queueManager.removeFromQueue(doctorId, appointmentId);
+    queueManager.removeFromQueue(doctorId, targetAptId);
 
-    // Emit live socket updates
+    const seenCount = await getSeenCountForDate(doctorId);
     const updatedQueue = queueManager.toSortedList(doctorId);
-    emitQueueUpdate(doctorId, updatedQueue);
+    emitQueueUpdate(doctorId, updatedQueue, { seenToday: seenCount });
+
     if (appointment) {
       emitPatientStatusChange(appointment.patient, {
-        appointmentId,
+        appointmentId: targetAptId,
         status: 'no-show'
       });
     }
 
-    res.json({ message: 'Patient marked as no-show', appointment, queue: updatedQueue });
+    res.json({ message: 'Patient marked as no-show', seenToday: seenCount, appointment, queue: updatedQueue });
   } catch (error) {
     console.error('markNoShow error:', error);
     res.status(500).json({ message: 'Error marking patient as no-show' });
@@ -210,6 +337,8 @@ const toggleEmergencyBump = async (req, res) => {
 module.exports = {
   getLiveQueue,
   advanceNextPatient,
+  markDone,
   markNoShow,
-  toggleEmergencyBump
+  toggleEmergencyBump,
+  getSeenCountForDate
 };

@@ -5,7 +5,8 @@ const {
   checkInAppointment,
   cancelAppointment,
   getMyAppointments,
-  rescheduleAppointment
+  rescheduleAppointment,
+  getDoctorAppointments
 } = require('../controllers/appointmentController');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/rbac');
@@ -20,6 +21,7 @@ router.put('/:id/check-in', authorize('patient', 'receptionist', 'admin'), check
 router.put('/:id/cancel', authorize('patient', 'receptionist', 'admin'), cancelAppointment);
 router.put('/:id/reschedule', authorize('patient', 'receptionist', 'admin'), rescheduleAppointment);
 router.get('/my', getMyAppointments);
+router.get('/doctor/:doctorId', authorize('doctor', 'receptionist', 'admin'), getDoctorAppointments);
 
 module.exports = router;
 

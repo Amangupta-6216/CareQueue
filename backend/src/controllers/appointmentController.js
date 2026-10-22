@@ -101,12 +101,14 @@ const bookAppointment = async (req, res) => {
       text: `Hello ${patientUser.name},\n\nYour appointment with Dr. ${populatedAppointment.doctor?.user?.name || 'Doctor'} on ${date} at ${startTime} has been successfully booked.\n\nThank you!`
     });
 
-    // Broadcast live slot update to all connected clients
+    // Broadcast live slot update & appointment event to all connected clients
     try {
       const { getIO } = require('../config/socket');
       const io = getIO();
       if (io) {
         io.emit('slot:update', { doctorId, slotId, date });
+        io.emit('appointment:booked', { doctorId, date, appointment: populatedAppointment });
+        io.to(`doctor:${doctorId}`).emit('doctor:appointmentBooked', { date, appointment: populatedAppointment });
       }
     } catch (e) {
       // Ignore socket emit error if socket not initialized
@@ -375,6 +377,9 @@ const getMyAppointments = async (req, res) => {
       const doctor = await Doctor.findOne({ user: req.user._id });
       if (doctor) query.doctor = doctor._id;
     }
+    if (req.query.date) {
+      query.date = req.query.date;
+    }
 
     const appointments = await Appointment.find(query)
       .populate({
@@ -469,10 +474,43 @@ const rescheduleAppointment = async (req, res) => {
       .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
       .populate('patient', 'name email phone isSeniorCitizen');
 
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) {
+        io.emit('slot:update', { doctorId: appointment.doctor, slotId: newSlotId, date: newDate });
+        io.emit('appointment:booked', { doctorId: appointment.doctor, date: newDate });
+      }
+    } catch (e) {}
+
     res.json({ message: 'Appointment rescheduled successfully!', appointment: populatedAppointment });
   } catch (error) {
     console.error('rescheduleAppointment error:', error);
     res.status(500).json({ message: 'Server error rescheduling appointment' });
+  }
+};
+
+// @desc    Get appointments for a specific doctor by date
+// @route   GET /api/appointments/doctor/:doctorId
+// @access  Doctor / Receptionist / Admin
+const getDoctorAppointments = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { date, status } = req.query;
+
+    const query = { doctor: doctorId };
+    if (date) query.date = date;
+    if (status) query.status = status;
+
+    const appointments = await Appointment.find(query)
+      .populate('patient', 'name email phone isSeniorCitizen')
+      .sort({ startTime: 1 })
+      .lean();
+
+    res.json(appointments);
+  } catch (error) {
+    console.error('getDoctorAppointments error:', error);
+    res.status(500).json({ message: 'Error fetching doctor appointments' });
   }
 };
 
@@ -482,6 +520,7 @@ module.exports = {
   checkInAppointment,
   cancelAppointment,
   getMyAppointments,
-  rescheduleAppointment
+  rescheduleAppointment,
+  getDoctorAppointments
 };
 
