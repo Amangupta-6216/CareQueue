@@ -1,5 +1,15 @@
 import React from 'react';
 import { Calendar, Clock, DollarSign, UserCheck, HeartHandshake, CheckCircle2, X } from 'lucide-react';
+// import { formatDoctorName } from '../../utils/formatters';
+
+const formatDoctorName = (name) => {
+  if (typeof name !== 'string' || !name.trim()) {
+    return 'Dr. Specialist';
+  }
+
+  const clean = name.trim().replace(/^(dr\.?\s*)+/i, '').trim();
+  return `Dr. ${clean || 'Specialist'}`;
+};
 
 export const BookingConfirmationModal = ({ doctor, slot, date, isSeniorCitizen, isOpen, onClose, onConfirm, loading }) => {
   if (!isOpen || !doctor || !slot) return null;
