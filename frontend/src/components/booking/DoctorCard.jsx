@@ -1,6 +1,14 @@
 import React from 'react';
-import { formatDoctorName } from '../../utils/formatters';
 import { UserCheck, Clock, Award, Info, CheckCircle2, AlertCircle } from 'lucide-react';
+
+const formatDoctorName = (name) => {
+  if (typeof name !== 'string' || !name.trim()) {
+    return 'Dr. Specialist';
+  }
+  
+  const clean = name.trim().replace(/^(dr\.?\s*)+/i, '').trim();
+  return `Dr. ${clean || 'Specialist'}`;
+};
 
 export const DoctorCard = ({ doctor, onSelect, isSelected, onViewProfile }) => {
   const name = formatDoctorName(doctor.user?.name);
