@@ -64,14 +64,11 @@ export const LiveQueueList = ({ queue, onNoShow, onEmergencyToggle, canManage = 
                   )}
                 </div>
 
-                <div className="flex items-center space-x-3 text-xs text-slate-500 mt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-[#D87070]" />
-                    Est Wait: ~{item.estimatedWaitMinutes || index * 15} mins
-                  </span>
-                  <span>•</span>
-                  <span>Score: {item.priorityScore ? item.priorityScore.toFixed(1) : 0}</span>
-                </div>
+                {item.patientPhone && (
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {item.patientPhone}
+                  </div>
+                )}
               </div>
             </div>
 

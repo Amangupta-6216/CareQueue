@@ -50,7 +50,7 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
             </button>
 
             <button
-              onClick={() => onNoShow(inProgressPatient.appointmentId)}
+              onClick={() => onNoShow(inProgressPatient.appointmentId?._id || inProgressPatient.appointmentId)}
               className="bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold py-3 px-4 rounded-xl border border-slate-200 transition-colors flex items-center gap-2"
             >
               <UserX className="w-5 h-5" />

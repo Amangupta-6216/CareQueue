@@ -92,7 +92,7 @@ export const ReceptionistDashboard = () => {
     }
 
     try {
-      const res = await api.post('/queue/walk-in', {
+      const res = await api.post('/appointments/walk-in', {
         ...walkInForm,
         patientPhone: formattedPhone
       });
@@ -285,7 +285,6 @@ export const ReceptionistDashboard = () => {
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900">Live Doctor Queue Monitor</h3>
-                  <p className="text-xs text-slate-500">Real-time min-heap triage sequence</p>
                 </div>
               </div>
 
