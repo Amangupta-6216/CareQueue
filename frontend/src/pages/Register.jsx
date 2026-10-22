@@ -1,21 +1,24 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
-import { 
-  UserPlus, 
-  Stethoscope, 
-  ClipboardCheck, 
-  User, 
-  Mail, 
-  Lock, 
-  HeartHandshake, 
-  AlertCircle, 
-  Building2, 
-  Award, 
-  Briefcase, 
+import {
+  UserPlus,
+  Stethoscope,
+  ClipboardCheck,
+  User,
+  Mail,
+  Lock,
+  HeartHandshake,
+  AlertCircle,
+  Building2,
+  Award,
+  Briefcase,
   IndianRupee,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const DEPARTMENTS = [
@@ -33,11 +36,15 @@ const DEPARTMENTS = [
 
 export const Register = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialRole = ['patient', 'doctor', 'receptionist'].includes(searchParams.get('role'))
+
+  const initialRole = ['patient', 'doctor', 'receptionist'].includes(
+    searchParams.get('role')
+  )
     ? searchParams.get('role')
     : 'patient';
 
   const [selectedRole, setSelectedRole] = useState(initialRole);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -50,14 +57,16 @@ export const Register = () => {
     consultationFee: 500
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  // Keep search param synced if role changes
+  // Keep the selected role synchronized with the URL
   useEffect(() => {
     const roleParam = searchParams.get('role');
+
     if (roleParam && ['patient', 'doctor', 'receptionist'].includes(roleParam)) {
       setSelectedRole(roleParam);
     }
@@ -71,6 +80,7 @@ export const Register = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -83,8 +93,11 @@ export const Register = () => {
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(formData.email.trim())) {
-      setError('Please include a valid email address with a domain extension (e.g. name@gmail.com)');
+      setError(
+        'Please include a valid email address with a domain extension (e.g. name@gmail.com)'
+      );
       return;
     }
 
@@ -95,12 +108,13 @@ export const Register = () => {
 
     setLoading(true);
 
-    // Format phone with Indian country code (+91) if not already formatted
+    // Format phone with Indian country code (+91), if necessary
     let formattedPhone = formData.phone.trim();
+
     if (formattedPhone) {
       if (!formattedPhone.startsWith('+')) {
-        formattedPhone = formattedPhone.startsWith('91') 
-          ? `+${formattedPhone}` 
+        formattedPhone = formattedPhone.startsWith('91')
+          ? `+${formattedPhone}`
           : `+91 ${formattedPhone}`;
       }
     }
@@ -111,10 +125,15 @@ export const Register = () => {
       password: formData.password,
       phone: formattedPhone,
       role: selectedRole,
-      isSeniorCitizen: selectedRole === 'patient' ? Boolean(formData.isSeniorCitizen) : false,
+      isSeniorCitizen:
+        selectedRole === 'patient'
+          ? Boolean(formData.isSeniorCitizen)
+          : false,
       ...(selectedRole === 'doctor' && {
         department: formData.department,
-        specialization: formData.specialization.trim() || `${formData.department} Specialist`,
+        specialization:
+          formData.specialization.trim() ||
+          `${formData.department} Specialist`,
         qualification: formData.qualification.trim() || 'MBBS, MD',
         consultationFee: Number(formData.consultationFee) || 500
       })
@@ -123,10 +142,13 @@ export const Register = () => {
     try {
       await api.post('/auth/register', payload);
 
-      // Redirect user to the login page first with a success notification
-      const roleDisplayName = 
-        selectedRole === 'doctor' ? 'Doctor' : 
-        selectedRole === 'receptionist' ? 'Receptionist' : 'Patient';
+      // Redirect to login with a success message
+      const roleDisplayName =
+        selectedRole === 'doctor'
+          ? 'Doctor'
+          : selectedRole === 'receptionist'
+            ? 'Receptionist'
+            : 'Patient';
 
       navigate('/login', {
         state: {
@@ -136,9 +158,12 @@ export const Register = () => {
       });
     } catch (err) {
       const errorMsg =
-        err.response?.data?.errors && Array.isArray(err.response.data.errors)
+        err.response?.data?.errors &&
+        Array.isArray(err.response.data.errors)
           ? err.response.data.errors.map((e) => e.message).join('. ')
-          : err.response?.data?.message || 'Registration failed. Please try again.';
+          : err.response?.data?.message ||
+            'Registration failed. Please try again.';
+
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -148,12 +173,13 @@ export const Register = () => {
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-8 px-4">
       <div className="bg-white p-6 sm:p-10 rounded-3xl border border-slate-200/80 w-full max-w-lg space-y-6 shadow-xl shadow-slate-200/50">
-        
+
         {/* Role Selector Tabs */}
         <div>
           <label className="block text-center text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
             Select Registration Type
           </label>
+
           <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200">
             <button
               type="button"
@@ -164,7 +190,13 @@ export const Register = () => {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <User className={`w-4 h-4 ${selectedRole === 'patient' ? 'text-[#D87070]' : 'text-slate-400'}`} />
+              <User
+                className={`w-4 h-4 ${
+                  selectedRole === 'patient'
+                    ? 'text-[#D87070]'
+                    : 'text-slate-400'
+                }`}
+              />
               <span>Patient</span>
             </button>
 
@@ -177,7 +209,13 @@ export const Register = () => {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Stethoscope className={`w-4 h-4 ${selectedRole === 'doctor' ? 'text-[#D87070]' : 'text-slate-400'}`} />
+              <Stethoscope
+                className={`w-4 h-4 ${
+                  selectedRole === 'doctor'
+                    ? 'text-[#D87070]'
+                    : 'text-slate-400'
+                }`}
+              />
               <span>Doctor</span>
             </button>
 
@@ -190,7 +228,13 @@ export const Register = () => {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <ClipboardCheck className={`w-4 h-4 ${selectedRole === 'receptionist' ? 'text-[#D87070]' : 'text-slate-400'}`} />
+              <ClipboardCheck
+                className={`w-4 h-4 ${
+                  selectedRole === 'receptionist'
+                    ? 'text-[#D87070]'
+                    : 'text-slate-400'
+                }`}
+              />
               <span>Receptionist</span>
             </button>
           </div>
@@ -201,20 +245,28 @@ export const Register = () => {
           <div className="w-12 h-12 rounded-2xl bg-[#FDF0F2] border border-[#F6B2B2]/40 text-[#D87070] flex items-center justify-center mx-auto shadow-sm">
             {selectedRole === 'patient' && <UserPlus className="w-6 h-6" />}
             {selectedRole === 'doctor' && <Stethoscope className="w-6 h-6" />}
-            {selectedRole === 'receptionist' && <ClipboardCheck className="w-6 h-6" />}
+            {selectedRole === 'receptionist' && (
+              <ClipboardCheck className="w-6 h-6" />
+            )}
           </div>
+
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">
             {selectedRole === 'patient' && 'Patient Registration'}
             {selectedRole === 'doctor' && 'Doctor Registration'}
             {selectedRole === 'receptionist' && 'Receptionist Registration'}
           </h2>
+
           <p className="text-xs text-slate-500 font-normal">
-            {selectedRole === 'patient' && 'Join CareQueue for online slot booking and live position tracking'}
-            {selectedRole === 'doctor' && 'Register your clinical profile to manage live queues and appointment slots'}
-            {selectedRole === 'receptionist' && 'Register front desk credentials to manage patient arrivals and tokens'}
+            {selectedRole === 'patient' &&
+              'Join CareQueue for online slot booking and live position tracking'}
+            {selectedRole === 'doctor' &&
+              'Register your clinical profile to manage live queues and appointment slots'}
+            {selectedRole === 'receptionist' &&
+              'Register front desk credentials to manage patient arrivals and tokens'}
           </p>
         </div>
 
+        {/* Error Message */}
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3.5 rounded-xl text-xs flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -223,14 +275,20 @@ export const Register = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          
+
           {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              {selectedRole === 'doctor' ? "Doctor's Full Name" : selectedRole === 'receptionist' ? "Staff Full Name" : "Full Name"}
+              {selectedRole === 'doctor'
+                ? "Doctor's Full Name"
+                : selectedRole === 'receptionist'
+                  ? 'Staff Full Name'
+                  : 'Full Name'}
             </label>
+
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
               <input
                 type="text"
                 name="name"
@@ -238,11 +296,11 @@ export const Register = () => {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder={
-                  selectedRole === 'doctor' 
-                    ? 'Dr. Ananya Sharma' 
-                    : selectedRole === 'receptionist' 
-                    ? 'Sarah Receptionist' 
-                    : 'Aman Gupta'
+                  selectedRole === 'doctor'
+                    ? 'Dr. Ananya Sharma'
+                    : selectedRole === 'receptionist'
+                      ? 'Sarah Receptionist'
+                      : 'Aman Gupta'
                 }
                 className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
               />
@@ -254,8 +312,10 @@ export const Register = () => {
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Email Address
             </label>
+
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
               <input
                 type="email"
                 name="email"
@@ -263,16 +323,19 @@ export const Register = () => {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder={
-                  selectedRole === 'doctor' 
-                    ? 'doctor@hospital.com' 
-                    : selectedRole === 'receptionist' 
-                    ? 'reception@hospital.com' 
-                    : 'name@example.com'
+                  selectedRole === 'doctor'
+                    ? 'doctor@hospital.com'
+                    : selectedRole === 'receptionist'
+                      ? 'reception@hospital.com'
+                      : 'name@example.com'
                 }
                 className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
               />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Must include @ and a valid domain (e.g. .com, .in)</p>
+
+            <p className="text-[11px] text-slate-400 mt-1">
+              Must include @ and a valid domain (e.g. .com, .in)
+            </p>
           </div>
 
           {/* Phone Number */}
@@ -280,11 +343,13 @@ export const Register = () => {
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Phone Number (+91)
             </label>
+
             <div className="relative flex items-center">
               <div className="absolute left-3.5 top-2.5 flex items-center gap-1.5 text-slate-600 text-xs font-bold border-r border-slate-200 pr-2.5 select-none">
                 <span>🇮🇳</span>
                 <span>+91</span>
               </div>
+
               <input
                 type="tel"
                 name="phone"
@@ -300,12 +365,15 @@ export const Register = () => {
           {selectedRole === 'doctor' && (
             <div className="space-y-4 pt-2 border-t border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Department
                   </label>
+
                   <div className="relative">
                     <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+
                     <select
                       name="department"
                       value={formData.department}
@@ -313,7 +381,9 @@ export const Register = () => {
                       className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all appearance-none cursor-pointer"
                     >
                       {DEPARTMENTS.map((dept) => (
-                        <option key={dept} value={dept}>{dept}</option>
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -323,8 +393,10 @@ export const Register = () => {
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Specialization
                   </label>
+
                   <div className="relative">
                     <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
                     <input
                       type="text"
                       name="specialization"
@@ -338,12 +410,15 @@ export const Register = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Qualification
                   </label>
+
                   <div className="relative">
                     <Award className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
                     <input
                       type="text"
                       name="qualification"
@@ -359,8 +434,10 @@ export const Register = () => {
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Consultation Fee (₹)
                   </label>
+
                   <div className="relative">
                     <IndianRupee className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
                     <input
                       type="number"
                       name="consultationFee"
@@ -377,8 +454,11 @@ export const Register = () => {
 
               <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+
                 <span>
-                  <strong>Automatic Schedule Setup:</strong> Registering as a doctor will automatically generate 14 days of appointment booking slots (09:00 - 17:00) so patients can book immediately.
+                  <strong>Automatic Schedule Setup:</strong> Registering as a
+                  doctor will automatically generate 14 days of appointment
+                  booking slots (09:00 - 17:00) so patients can book immediately.
                 </span>
               </div>
             </div>
@@ -388,29 +468,48 @@ export const Register = () => {
           {selectedRole === 'receptionist' && (
             <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+
               <span>
-                <strong>Front Desk Authorization:</strong> You will gain staff privileges to check in scheduled patients, create instant walk-in tokens, and manage doctor waiting rooms.
+                <strong>Front Desk Authorization:</strong> You will gain staff
+                privileges to check in scheduled patients, create instant
+                walk-in tokens, and manage doctor waiting rooms.
               </span>
             </div>
           )}
 
-          {/* Password */}
+          {/* Password Field with Show/Hide Button */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Password
             </label>
+
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 name="password"
                 required
                 minLength={6}
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="Minimum 6 characters"
-                className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50/70 border border-slate-200 text-slate-900 rounded-xl pl-10 pr-11 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all placeholder:text-slate-400"
               />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] rounded-md p-1"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
 
@@ -425,7 +524,11 @@ export const Register = () => {
                 onChange={handleChange}
                 className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
               />
-              <label htmlFor="isSeniorCitizen" className="text-xs font-semibold text-amber-900 cursor-pointer flex items-center gap-1.5">
+
+              <label
+                htmlFor="isSeniorCitizen"
+                className="text-xs font-semibold text-amber-900 cursor-pointer flex items-center gap-1.5"
+              >
                 <HeartHandshake className="w-4 h-4 text-amber-600" />
                 Senior Citizen Priority (60+ years old)
               </label>
@@ -436,7 +539,7 @@ export const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 transform hover:-translate-y-0.5"
+            className="w-full bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? (
               'Creating Account...'
@@ -447,18 +550,24 @@ export const Register = () => {
                   {selectedRole === 'receptionist' && 'Register as Receptionist'}
                   {selectedRole === 'patient' && 'Register as Patient'}
                 </span>
+
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
+        {/* Login Link */}
         <div className="text-center pt-2 text-xs text-slate-500 border-t border-slate-100">
           Already have an account?{' '}
-          <Link to="/login" className="text-[#D87070] font-bold hover:underline">
+          <Link
+            to="/login"
+            className="text-[#D87070] font-bold hover:underline"
+          >
             Sign In to CareQueue
           </Link>
         </div>
+
       </div>
     </div>
   );
