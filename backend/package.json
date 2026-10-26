@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
-    "test:heap": "node src/dsa/testHeap.js"
+    "test:heap": "node src/dsa/testHeap.js",
+    "migrate:urgency": "node src/scripts/migrateUrgency.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

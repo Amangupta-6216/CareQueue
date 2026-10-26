@@ -20,7 +20,7 @@ router.get('/:id/slots', getDoctorSlots);
 
 router.post('/', protect, authorize('admin'), createDoctor);
 router.put('/:id/availability', protect, authorize('admin', 'doctor'), updateDoctorAvailability);
-router.post('/:id/leave-request', protect, authorize('doctor'), requestLeave);
+router.post('/:id/leave-request', protect, authorize('doctor', 'admin'), requestLeave);
 router.put('/:doctorId/leave-request/:requestId', protect, authorize('admin'), updateLeaveRequestStatus);
 router.delete('/:id', protect, authorize('admin'), deleteDoctor);
 

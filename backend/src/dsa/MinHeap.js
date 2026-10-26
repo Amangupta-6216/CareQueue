@@ -1,10 +1,12 @@
 /**
- * Custom Min-Heap Implementation for Priority Doctor Queue Management.
+ * Custom Min-Heap Implementation for Urgency-Based Priority Doctor Queue Management.
  * 
- * Score Formula:
- * priorityScore = basePosition - (isEmergency ? 1000 : 0) - (isSeniorCitizen ? 50 : 0) - (waitingTimeMinutes * 0.5)
- * 
- * Lower priority score = higher urgency / seen sooner.
+ * Queue Ordering Rules:
+ * Rule 1: Urgency level (ascending numeric ordering: 1 = Level 1 Critical, 2 = Level 2 Urgent, 3 = Level 3 Standard).
+ *         Note: These are illustrative categories for queue prototype sorting and do not constitute a clinically validated protocol.
+ * Rule 2: Arrival timestamp (joinedAt: earlier arrival served first).
+ * Rule 3: Deterministic tie-breaker (stable comparison of unique identifiers).
+ * Rule 4: No weighted formula, emergency multipliers, or waiting-time point inflation.
  */
 
 class MinHeap {
@@ -13,48 +15,72 @@ class MinHeap {
   }
 
   /**
-   * Calculates the priority score for a queue item.
-   * @param {Object} item - Queue node
-   * @param {Date} [now=new Date()] - Reference timestamp
-   * @returns {number} Calculated priority score
+   * Validates staff-assigned urgency level.
+   * Explicitly handles invalid or missing urgency values.
+   * @param {*} level 
+   * @returns {number} 1, 2, or 3
    */
-  static calculateScore(item, now = new Date()) {
-    const basePosition = item.basePosition || 0;
-    const isEmergencyBonus = item.isEmergency ? 1000 : 0;
-    const isSeniorBonus = item.isSeniorCitizen ? 50 : 0;
-    
-    const joinedAtTime = new Date(item.joinedAt).getTime();
-    const currentTime = new Date(now).getTime();
-    const waitingTimeMinutes = Math.max(0, (currentTime - joinedAtTime) / (1000 * 60));
-    const waitingTimeBonus = waitingTimeMinutes * 0.5;
-
-    return basePosition - isEmergencyBonus - isSeniorBonus - waitingTimeBonus;
+  static validateUrgency(level) {
+    if (level === undefined || level === null || level === '') {
+      throw new Error('Urgency level is required and cannot be empty.');
+    }
+    const num = Number(level);
+    if (!Number.isInteger(num) || num < 1 || num > 3) {
+      throw new Error(`Invalid urgency level "${level}". Must be 1 (Critical), 2 (Urgent), or 3 (Standard).`);
+    }
+    return num;
   }
 
   /**
-   * Helper: Parent index in binary tree
+   * Strict 3-tier comparator for queue items:
+   * Returns:
+   *   < 0 if a has higher priority than b (a served before b)
+   *   > 0 if b has higher priority than a (b served before a)
+   *   0 if completely identical
    */
+  static compare(a, b) {
+    // 1. Urgency level comparison (ascending: lower number = higher priority)
+    const urgencyA = a.urgencyLevel !== undefined ? Number(a.urgencyLevel) : 3;
+    const urgencyB = b.urgencyLevel !== undefined ? Number(b.urgencyLevel) : 3;
+
+    if (urgencyA !== urgencyB) {
+      return urgencyA - urgencyB;
+    }
+
+    // 2. Arrival timestamp comparison (earlier joinedAt served first)
+    const timeA = new Date(a.joinedAt || 0).getTime();
+    const timeB = new Date(b.joinedAt || 0).getTime();
+
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+
+    // 3. Deterministic tie-breaking using unique identifier
+    const idA = String(a.queueEntryId || a.appointmentId || '');
+    const idB = String(b.queueEntryId || b.appointmentId || '');
+
+    return idA.localeCompare(idB);
+  }
+
+  /**
+   * Returns true if item at indexA has higher priority than item at indexB.
+   */
+  isHigherPriority(indexA, indexB) {
+    return MinHeap.compare(this.heap[indexA], this.heap[indexB]) < 0;
+  }
+
   getParentIndex(i) {
     return Math.floor((i - 1) / 2);
   }
 
-  /**
-   * Helper: Left child index
-   */
   getLeftChildIndex(i) {
     return 2 * i + 1;
   }
 
-  /**
-   * Helper: Right child index
-   */
   getRightChildIndex(i) {
     return 2 * i + 2;
   }
 
-  /**
-   * Helper: Swap elements in internal array
-   */
   swap(i1, i2) {
     const temp = this.heap[i1];
     this.heap[i1] = this.heap[i2];
@@ -62,49 +88,15 @@ class MinHeap {
   }
 
   /**
-   * Sift-up balancing step
+   * Sift-up balancing step preserving MinHeap invariant
    */
   siftUp(index) {
     let currentIndex = index;
-    while (
-      currentIndex > 0 &&
-      this.heap[currentIndex].priorityScore < this.heap[this.getParentIndex(currentIndex)].priorityScore
-    ) {
+    while (currentIndex > 0) {
       const parentIndex = this.getParentIndex(currentIndex);
-      this.swap(currentIndex, parentIndex);
-      currentIndex = parentIndex;
-    }
-  }
-
-  /**
-   * Sift-down balancing step
-   */
-  siftDown(index) {
-    let currentIndex = index;
-    let minIndex = currentIndex;
-    const size = this.heap.length;
-
-    while (true) {
-      const leftIndex = this.getLeftChildIndex(currentIndex);
-      const rightIndex = this.getRightChildIndex(currentIndex);
-
-      if (
-        leftIndex < size &&
-        this.heap[leftIndex].priorityScore < this.heap[minIndex].priorityScore
-      ) {
-        minIndex = leftIndex;
-      }
-
-      if (
-        rightIndex < size &&
-        this.heap[rightIndex].priorityScore < this.heap[minIndex].priorityScore
-      ) {
-        minIndex = rightIndex;
-      }
-
-      if (currentIndex !== minIndex) {
-        this.swap(currentIndex, minIndex);
-        currentIndex = minIndex;
+      if (this.isHigherPriority(currentIndex, parentIndex)) {
+        this.swap(currentIndex, parentIndex);
+        currentIndex = parentIndex;
       } else {
         break;
       }
@@ -112,17 +104,46 @@ class MinHeap {
   }
 
   /**
-   * Inserts an entry into the heap.
+   * Sift-down balancing step preserving MinHeap invariant
+   */
+  siftDown(index) {
+    let currentIndex = index;
+    const size = this.heap.length;
+
+    while (true) {
+      let highestPriorityIndex = currentIndex;
+      const leftIndex = this.getLeftChildIndex(currentIndex);
+      const rightIndex = this.getRightChildIndex(currentIndex);
+
+      if (leftIndex < size && this.isHigherPriority(leftIndex, highestPriorityIndex)) {
+        highestPriorityIndex = leftIndex;
+      }
+
+      if (rightIndex < size && this.isHigherPriority(rightIndex, highestPriorityIndex)) {
+        highestPriorityIndex = rightIndex;
+      }
+
+      if (highestPriorityIndex !== currentIndex) {
+        this.swap(currentIndex, highestPriorityIndex);
+        currentIndex = highestPriorityIndex;
+      } else {
+        break;
+      }
+    }
+  }
+
+  /**
+   * Inserts an item into the MinHeap.
    * @param {Object} item 
    */
   insert(item) {
-    const score = item.priorityScore !== undefined 
-      ? item.priorityScore 
-      : MinHeap.calculateScore(item);
+    const validatedUrgency = MinHeap.validateUrgency(item.urgencyLevel);
+    const joinedAt = item.joinedAt ? new Date(item.joinedAt) : new Date();
 
     const node = {
       ...item,
-      priorityScore: score
+      urgencyLevel: validatedUrgency,
+      joinedAt
     };
 
     this.heap.push(node);
@@ -131,7 +152,7 @@ class MinHeap {
   }
 
   /**
-   * Returns and removes the item with highest priority (lowest score).
+   * Returns and removes the highest priority item from the queue.
    */
   extractMin() {
     if (this.heap.length === 0) return null;
@@ -144,19 +165,52 @@ class MinHeap {
   }
 
   /**
-   * Peeks at the top priority item without removing it.
+   * Returns highest priority item without removing it.
    */
   peek() {
     return this.heap.length > 0 ? this.heap[0] : null;
   }
 
   /**
-   * Removes an entry by appointmentId (used for cancellations or manual overrides).
+   * Updates the urgency level of a waiting patient and restores the heap invariant in O(log n).
+   * @param {string} appointmentIdOrEntryId 
+   * @param {number} newUrgencyLevel 
+   * @returns {Object|null} The updated node or null if not found
    */
-  removeByAppointmentId(appointmentId) {
-    const targetIdStr = appointmentId.toString();
-    const index = this.heap.findIndex(
-      node => node.appointmentId && node.appointmentId.toString() === targetIdStr
+  updateUrgency(appointmentIdOrEntryId, newUrgencyLevel) {
+    const validatedUrgency = MinHeap.validateUrgency(newUrgencyLevel);
+    const targetStr = appointmentIdOrEntryId.toString();
+
+    const index = this.heap.findIndex(node => 
+      (node.appointmentId && node.appointmentId.toString() === targetStr) ||
+      (node.queueEntryId && node.queueEntryId.toString() === targetStr)
+    );
+
+    if (index === -1) return null;
+
+    const targetNode = this.heap[index];
+    const oldUrgency = targetNode.urgencyLevel;
+    targetNode.urgencyLevel = validatedUrgency;
+
+    if (validatedUrgency < oldUrgency) {
+      // Increased urgency -> sift up
+      this.siftUp(index);
+    } else if (validatedUrgency > oldUrgency) {
+      // Decreased urgency -> sift down
+      this.siftDown(index);
+    }
+
+    return targetNode;
+  }
+
+  /**
+   * Removes an entry by appointmentId or queueEntryId.
+   */
+  removeByAppointmentId(appointmentIdOrEntryId) {
+    const targetStr = appointmentIdOrEntryId.toString();
+    const index = this.heap.findIndex(node => 
+      (node.appointmentId && node.appointmentId.toString() === targetStr) ||
+      (node.queueEntryId && node.queueEntryId.toString() === targetStr)
     );
 
     if (index === -1) return null;
@@ -167,28 +221,14 @@ class MinHeap {
 
     const removedNode = this.heap[index];
     this.heap[index] = this.heap.pop();
-    
-    // Balance node at index
+
     this.siftUp(index);
     this.siftDown(index);
     return removedNode;
   }
 
   /**
-   * Recalculates all priority scores based on current timestamp and rebuilds heap.
-   */
-  recalculateAndReheap(now = new Date()) {
-    for (let i = 0; i < this.heap.length; i++) {
-      this.heap[i].priorityScore = MinHeap.calculateScore(this.heap[i], now);
-    }
-    // Re-heapify from last non-leaf node down to root
-    for (let i = Math.floor(this.heap.length / 2) - 1; i >= 0; i--) {
-      this.siftDown(i);
-    }
-  }
-
-  /**
-   * Returns array of nodes sorted by priority (top of queue first) without mutating heap.
+   * Returns a copy of the queue sorted by priority without mutating the heap.
    */
   toSortedArray() {
     const clone = new MinHeap();

@@ -58,7 +58,7 @@ export const App = () => {
                 <Route
                   path="/dashboard/patient"
                   element={
-                    <ProtectedRoute allowedRoles={['patient', 'admin']}>
+                    <ProtectedRoute allowedRoles={['patient', 'doctor', 'receptionist', 'admin']}>
                       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                         <PatientDashboard />
                       </div>
@@ -69,7 +69,7 @@ export const App = () => {
                 <Route
                   path="/dashboard/doctor"
                   element={
-                    <ProtectedRoute allowedRoles={['doctor', 'admin']}>
+                    <ProtectedRoute allowedRoles={['doctor', 'admin', 'receptionist']}>
                       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                         <DoctorDashboard />
                       </div>
@@ -80,7 +80,7 @@ export const App = () => {
                 <Route
                   path="/dashboard/receptionist"
                   element={
-                    <ProtectedRoute allowedRoles={['receptionist', 'admin']}>
+                    <ProtectedRoute allowedRoles={['receptionist', 'doctor', 'admin']}>
                       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                         <ReceptionistDashboard />
                       </div>

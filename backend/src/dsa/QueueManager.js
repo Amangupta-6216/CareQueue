@@ -20,35 +20,53 @@ class QueueManager {
   }
 
   /**
-   * Adds an entry to a doctor's queue.
+   * Adds an entry to a doctor's urgency-based priority queue.
    */
   addToQueue(doctorId, queueItem) {
     const heap = this.getOrCreateQueue(doctorId);
-    const existingIndex = heap.heap.findIndex(
-      node => node.appointmentId && node.appointmentId.toString() === queueItem.appointmentId.toString()
+    const targetAptId = queueItem.appointmentId ? queueItem.appointmentId.toString() : null;
+    const targetEntryId = queueItem.queueEntryId ? queueItem.queueEntryId.toString() : null;
+
+    const existingIndex = heap.heap.findIndex(node => 
+      (targetAptId && node.appointmentId && node.appointmentId.toString() === targetAptId) ||
+      (targetEntryId && node.queueEntryId && node.queueEntryId.toString() === targetEntryId)
     );
+
     if (existingIndex !== -1) {
-      // Already in queue
+      // Patient already in queue - if urgency changed, update it
+      if (queueItem.urgencyLevel && queueItem.urgencyLevel !== heap.heap[existingIndex].urgencyLevel) {
+        heap.updateUrgency(targetAptId || targetEntryId, queueItem.urgencyLevel);
+      }
       return heap.heap[existingIndex];
     }
 
-    // Set base position as current queue length + 1 if not set
-    if (!queueItem.basePosition) {
-      queueItem.basePosition = heap.size() + 1;
-    }
+    const itemToInsert = {
+      ...queueItem,
+      urgencyLevel: queueItem.urgencyLevel !== undefined ? Number(queueItem.urgencyLevel) : 3,
+      joinedAt: queueItem.joinedAt ? new Date(queueItem.joinedAt) : new Date()
+    };
 
-    const insertedNode = heap.insert(queueItem);
-    return insertedNode;
+    return heap.insert(itemToInsert);
   }
 
   /**
-   * Removes an entry from a doctor's queue by appointmentId.
+   * Updates urgency level of a waiting patient in a doctor's queue.
    */
-  removeFromQueue(doctorId, appointmentId) {
+  updatePatientUrgency(doctorId, appointmentIdOrEntryId, newUrgencyLevel) {
     const docIdStr = doctorId.toString();
     if (!this.queues.has(docIdStr)) return null;
     const heap = this.queues.get(docIdStr);
-    return heap.removeByAppointmentId(appointmentId);
+    return heap.updateUrgency(appointmentIdOrEntryId, newUrgencyLevel);
+  }
+
+  /**
+   * Removes an entry from a doctor's queue by appointmentId or queueEntryId.
+   */
+  removeFromQueue(doctorId, appointmentIdOrEntryId) {
+    const docIdStr = doctorId.toString();
+    if (!this.queues.has(docIdStr)) return null;
+    const heap = this.queues.get(docIdStr);
+    return heap.removeByAppointmentId(appointmentIdOrEntryId);
   }
 
   /**
@@ -73,23 +91,24 @@ class QueueManager {
 
   /**
    * Returns a sorted array representing the live queue for UI rendering.
+   * Based purely on Urgency Level -> Arrival Time -> Deterministic ID.
    */
   toSortedList(doctorId) {
     const docIdStr = doctorId.toString();
     if (!this.queues.has(docIdStr)) return [];
     const heap = this.queues.get(docIdStr);
-    heap.recalculateAndReheap(new Date());
     return heap.toSortedArray();
   }
 
   /**
    * Finds position (1-indexed) of a patient in a doctor's queue.
    */
-  getPatientPosition(doctorId, appointmentId) {
+  getPatientPosition(doctorId, appointmentIdOrEntryId) {
     const sortedList = this.toSortedList(doctorId);
-    const targetIdStr = appointmentId.toString();
-    const index = sortedList.findIndex(
-      item => item.appointmentId && item.appointmentId.toString() === targetIdStr
+    const targetStr = appointmentIdOrEntryId.toString();
+    const index = sortedList.findIndex(item => 
+      (item.appointmentId && item.appointmentId.toString() === targetStr) ||
+      (item.queueEntryId && item.queueEntryId.toString() === targetStr)
     );
     return index !== -1 ? index + 1 : null;
   }
@@ -99,12 +118,17 @@ class QueueManager {
    */
   async hydrateFromDB(QueueEntryModel) {
     try {
-      console.log('🔄 Hydrating Doctor Queue Heaps from MongoDB...');
+      console.log('🔄 Hydrating Doctor Urgency Queue Heaps from MongoDB...');
       this.queues.clear();
       
-      const waitingEntries = await QueueEntryModel.find({ status: 'waiting' })
+      require('../models/User');
+      require('../models/Appointment');
+      const Model = QueueEntryModel || require('../models/QueueEntry');
+      
+      const waitingEntries = await Model.find({ status: 'waiting' })
         .populate('patientId', 'name email isSeniorCitizen phone')
         .populate('appointmentId')
+        .populate('urgencyAssignedBy', 'name role')
         .lean();
 
       let hydratedCount = 0;
@@ -116,10 +140,12 @@ class QueueManager {
           patientId: entry.patientId ? entry.patientId._id : entry.patientId,
           patientName: entry.patientId ? entry.patientId.name : 'Walk-In Patient',
           patientPhone: entry.patientId ? entry.patientId.phone : '',
-          isEmergency: entry.isEmergency,
-          isSeniorCitizen: entry.isSeniorCitizen || (entry.patientId ? entry.patientId.isSeniorCitizen : false),
-          joinedAt: entry.joinedAt,
-          basePosition: entry.basePosition || 1,
+          urgencyLevel: entry.urgencyLevel !== undefined ? entry.urgencyLevel : 3,
+          urgencyAssignedBy: entry.urgencyAssignedBy ? entry.urgencyAssignedBy.name : null,
+          urgencyAssignedAt: entry.urgencyAssignedAt || entry.createdAt,
+          isEmergency: Boolean(entry.isEmergency),
+          isSeniorCitizen: Boolean(entry.isSeniorCitizen || (entry.patientId ? entry.patientId.isSeniorCitizen : false)),
+          joinedAt: entry.joinedAt || entry.createdAt || new Date(),
           status: entry.status
         };
 

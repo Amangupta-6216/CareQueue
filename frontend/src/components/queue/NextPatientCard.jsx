@@ -1,6 +1,30 @@
 import React from 'react';
 import { UserCheck, CheckCircle2, UserX, AlertTriangle, Phone, Activity } from 'lucide-react';
 
+const renderUrgencyBadge = (level) => {
+  switch (Number(level)) {
+    case 1:
+      return (
+        <span className="bg-rose-100 text-rose-800 border border-rose-300 font-extrabold text-xs px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs animate-pulse">
+          Level 1 • Critical
+        </span>
+      );
+    case 2:
+      return (
+        <span className="bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+          Level 2 • Urgent
+        </span>
+      );
+    case 3:
+    default:
+      return (
+        <span className="bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+          Level 3 • Standard
+        </span>
+      );
+  }
+};
+
 export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, onMarkDone, onNoShow }) => {
   return (
     <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 relative overflow-hidden shadow-sm">
@@ -20,7 +44,7 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
 
       {inProgressPatient ? (
         <div className="space-y-6">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Currently Seeing</span>
               <h2 className="text-2xl font-bold text-slate-900 mt-1">
@@ -32,18 +56,21 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
               </p>
             </div>
 
-            {inProgressPatient.isEmergency && (
-              <span className="bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-                Emergency Case
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {renderUrgencyBadge(inProgressPatient.urgencyLevel || 3)}
+              {inProgressPatient.isEmergency && (
+                <span className="bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  Emergency Case
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={() => onMarkDone()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-5 h-5" />
               Mark Consultation Done & Call Next
@@ -51,7 +78,7 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
 
             <button
               onClick={() => onNoShow(inProgressPatient.appointmentId?._id || inProgressPatient.appointmentId)}
-              className="bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold py-3 px-4 rounded-xl border border-slate-200 transition-colors flex items-center gap-2"
+              className="bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold py-3 px-4 rounded-xl border border-slate-200 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <UserX className="w-5 h-5" />
               Patient Absent (No-Show)
@@ -66,7 +93,7 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
           <h4 className="text-lg font-bold text-slate-900">No Consultation In Progress</h4>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
             {nextInQueue
-              ? `Next patient in queue is ${nextInQueue.patientName} (Position #1).`
+              ? `Next patient in queue is ${nextInQueue.patientName} (Position #1) with ${renderUrgencyBadge(nextInQueue.urgencyLevel || 3).props.children}.`
               : 'The queue is currently clear.'}
           </p>
 
@@ -75,7 +102,7 @@ export const NextPatientCard = ({ inProgressPatient, nextInQueue, onCallNext, on
             disabled={!nextInQueue}
             className={`mt-6 px-6 py-3 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 mx-auto transition-all ${
               nextInQueue
-                ? 'bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 shadow-md transform hover:-translate-y-0.5'
+                ? 'bg-[#F6B2B2] hover:bg-[#F29F9F] text-slate-900 shadow-md transform hover:-translate-y-0.5 cursor-pointer'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
             }`}
           >

@@ -34,13 +34,18 @@ const appointmentSchema = new mongoose.Schema(
     },
     bookedBy: {
       type: String,
-      enum: ['self', 'receptionist', 'admin'],
+      enum: ['self', 'patient', 'doctor', 'receptionist', 'admin'],
       default: 'self'
     },
     status: {
       type: String,
       enum: ['booked', 'checked-in', 'in-queue', 'in-progress', 'done', 'cancelled', 'no-show'],
       default: 'booked'
+    },
+    urgencyLevel: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: 3
     },
     reasonForVisit: {
       type: String,

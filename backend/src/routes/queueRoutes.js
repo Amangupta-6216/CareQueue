@@ -4,6 +4,7 @@ const {
   advanceNextPatient,
   markDone,
   markNoShow,
+  updatePatientUrgency,
   toggleEmergencyBump
 } = require('../controllers/queueController');
 const { registerWalkIn } = require('../controllers/appointmentController');
@@ -25,10 +26,15 @@ router.put('/:doctorId/done', authorize('doctor', 'admin'), markDone);
 router.put('/:doctorId/done/:appointmentId', authorize('doctor', 'admin'), markDone);
 
 // Support walk-in registration on /queue/walk-in alias as well
-router.post('/walk-in', authorize('receptionist', 'admin'), registerWalkIn);
+router.post('/walk-in', authorize('receptionist', 'doctor', 'admin'), registerWalkIn);
 
 router.put('/:doctorId/no-show', authorize('doctor', 'receptionist', 'admin'), markNoShow);
 router.put('/:doctorId/no-show/:appointmentId', authorize('doctor', 'receptionist', 'admin'), markNoShow);
-router.put('/:doctorId/emergency/:appointmentId', authorize('receptionist', 'admin'), toggleEmergencyBump);
+
+// Staff-assigned urgency level update (Level 1, 2, or 3)
+router.put('/:doctorId/urgency/:appointmentId', authorize('doctor', 'receptionist', 'admin'), updatePatientUrgency);
+
+// Metadata emergency flag
+router.put('/:doctorId/emergency/:appointmentId', authorize('receptionist', 'doctor', 'admin'), toggleEmergencyBump);
 
 module.exports = router;

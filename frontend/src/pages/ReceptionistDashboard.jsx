@@ -21,6 +21,7 @@ export const ReceptionistDashboard = () => {
     patientEmail: '',
     isSeniorCitizen: false,
     doctorId: '',
+    urgencyLevel: 3,
     isEmergency: false,
     reasonForVisit: 'Walk-In Consultation'
   });
@@ -108,6 +109,7 @@ export const ReceptionistDashboard = () => {
         patientEmail: '',
         isSeniorCitizen: false,
         doctorId: selectedDoctorId,
+        urgencyLevel: 3,
         isEmergency: false,
         reasonForVisit: 'Walk-In Consultation'
       });
@@ -120,6 +122,16 @@ export const ReceptionistDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUrgencyChange = async (doctorId, appointmentId, newUrgencyLevel) => {
+    try {
+      await api.put(`/queue/${doctorId}/urgency/${appointmentId}`, { urgencyLevel: newUrgencyLevel });
+      setMessage({ type: 'success', text: `Patient urgency updated to Level ${newUrgencyLevel}.` });
+      fetchDoctorQueue(doctorId);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to update urgency level.' });
     }
   };
 
@@ -233,7 +245,27 @@ export const ReceptionistDashboard = () => {
                 </select>
               </div>
 
-              {/* Emergency & Senior Toggles */}
+              {/* Urgency Level Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Assigned Urgency Level *</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Ascending (1=Highest)</span>
+                </label>
+                <select
+                  value={walkInForm.urgencyLevel}
+                  onChange={(e) => setWalkInForm({ ...walkInForm, urgencyLevel: Number(e.target.value) })}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F6B2B2] focus:bg-white transition-all font-medium"
+                >
+                  <option value={1}>Level 1 - Critical (Immediate Medical Attention)</option>
+                  <option value={2}>Level 2 - Urgent (Urgent Care Consultation)</option>
+                  <option value={3}>Level 3 - Standard (Routine Consultation Order)</option>
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1 italic">
+                  * Prototype illustrative triage categories for demonstration; not a validated clinical protocol.
+                </p>
+              </div>
+
+              {/* Emergency & Senior Metadata Toggles */}
               <div className="space-y-2.5 pt-1">
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-3 transition-colors">
                   <input
@@ -245,7 +277,7 @@ export const ReceptionistDashboard = () => {
                   />
                   <label htmlFor="isEmergency" className="text-xs font-bold text-rose-800 cursor-pointer flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                    EMERGENCY BUMP (Highest Priority)
+                    Clinical Emergency Alert (Operational Metadata Flag)
                   </label>
                 </div>
 
@@ -305,6 +337,7 @@ export const ReceptionistDashboard = () => {
 
             <LiveQueueList
               queue={liveQueue}
+              onUrgencyChange={handleUrgencyChange}
               onEmergencyToggle={handleEmergencyToggle}
               onNoShow={handleNoShow}
               canManage={true}

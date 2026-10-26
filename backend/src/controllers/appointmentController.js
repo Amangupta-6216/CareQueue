@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
@@ -146,47 +147,81 @@ const registerWalkIn = async (req, res) => {
 
     // Find or create patient user record
     let patientUser;
-    const emailToUse = patientEmail ? patientEmail.toLowerCase() : `walkin_${Date.now()}@hospital.internal`;
-    
-    patientUser = await User.findOne({ email: emailToUse });
+    const trimmedName = (patientName || '').trim();
+    const trimmedPhone = (patientPhone || '').trim();
+    const trimmedEmail = (patientEmail || '').trim().toLowerCase();
+
+    if (trimmedEmail) {
+      patientUser = await User.findOne({ email: trimmedEmail });
+      // If found by email, keep the name updated if provided
+      if (patientUser && trimmedName && patientUser.name !== trimmedName) {
+        patientUser.name = trimmedName;
+        await patientUser.save();
+      }
+    } else if (trimmedPhone && trimmedName) {
+      // Find patient matching phone AND name (case-insensitive)
+      // This prevents different patients sharing a contact phone number (e.g. family members or test patients)
+      // from clobbering each other's names.
+      const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      patientUser = await User.findOne({
+        phone: trimmedPhone,
+        role: 'patient',
+        name: new RegExp(`^${escapedName}$`, 'i')
+      });
+    }
+
     if (!patientUser) {
+      const emailToUse = trimmedEmail
+        ? trimmedEmail
+        : `walkin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}@hospital.internal`;
+
       const randomPassword = await bcrypt.hash(`walkin_${Date.now()}`, 10);
       patientUser = await User.create({
-        name: patientName,
+        name: trimmedName || 'Walk-In Patient',
         email: emailToUse,
         password: randomPassword,
         role: 'patient',
-        phone: patientPhone || '',
+        phone: trimmedPhone,
         isSeniorCitizen: Boolean(isSeniorCitizen)
       });
+    } else if (isSeniorCitizen !== undefined && patientUser.isSeniorCitizen !== Boolean(isSeniorCitizen)) {
+      patientUser.isSeniorCitizen = Boolean(isSeniorCitizen);
+      await patientUser.save();
+    }
+
+    // Validate urgency level if provided by staff (default Level 3 Standard)
+    let validatedUrgency = 3;
+    if (req.body.urgencyLevel !== undefined && req.body.urgencyLevel !== null && req.body.urgencyLevel !== '') {
+      const MinHeap = require('../dsa/MinHeap');
+      validatedUrgency = MinHeap.validateUrgency(req.body.urgencyLevel);
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
     const nowTimeStr = new Date().toTimeString().slice(0, 5);
 
-    // Create walk-in appointment record
+    // Create walk-in appointment record with unique slotId to prevent compound index collision
     const appointment = await Appointment.create({
       patient: patientUser._id,
       doctor: doctorId,
-      slotId: doctor.availableSlots[0]?._id || doctor._id,
+      slotId: new mongoose.Types.ObjectId(),
       date: todayStr,
       startTime: nowTimeStr,
       isEmergency: Boolean(isEmergency),
       isWalkIn: true,
-      bookedBy: req.user.role,
+      bookedBy: req.user ? req.user.role : 'receptionist',
       status: 'in-queue',
+      urgencyLevel: validatedUrgency,
       reasonForVisit: reasonForVisit || 'Walk-In Consultation'
     });
 
     // Create DB QueueEntry
-    const currentQueue = queueManager.toSortedList(doctorId);
-    const basePosition = currentQueue.length + 1;
-
     const queueEntry = await QueueEntry.create({
       appointmentId: appointment._id,
       doctorId,
       patientId: patientUser._id,
-      basePosition,
+      urgencyLevel: validatedUrgency,
+      urgencyAssignedBy: req.user ? req.user._id : undefined,
+      urgencyAssignedAt: new Date(),
       isEmergency: Boolean(isEmergency),
       isSeniorCitizen: Boolean(patientUser.isSeniorCitizen),
       joinedAt: new Date(),
@@ -199,12 +234,14 @@ const registerWalkIn = async (req, res) => {
       appointmentId: appointment._id,
       doctorId,
       patientId: patientUser._id,
-      patientName: patientUser.name,
+      patientName: trimmedName || patientUser.name,
       patientPhone: patientUser.phone,
+      urgencyLevel: validatedUrgency,
+      urgencyAssignedBy: req.user ? (req.user.name || req.user.role) : 'Receptionist',
+      urgencyAssignedAt: queueEntry.urgencyAssignedAt,
       isEmergency: Boolean(isEmergency),
       isSeniorCitizen: Boolean(patientUser.isSeniorCitizen),
       joinedAt: queueEntry.joinedAt,
-      basePosition,
       status: 'waiting'
     };
 
@@ -222,7 +259,7 @@ const registerWalkIn = async (req, res) => {
     });
   } catch (error) {
     console.error('registerWalkIn error:', error);
-    res.status(500).json({ message: 'Server error registering walk-in patient' });
+    res.status(500).json({ message: error.message || 'Server error registering walk-in patient' });
   }
 };
 
@@ -243,19 +280,24 @@ const checkInAppointment = async (req, res) => {
       return res.status(400).json({ message: `Appointment is already ${appointment.status}` });
     }
 
-    const { isEmergency } = req.body;
+    const { isEmergency, urgencyLevel } = req.body;
     if (isEmergency !== undefined) {
       appointment.isEmergency = Boolean(isEmergency);
     }
 
+    let validatedUrgency = appointment.urgencyLevel || 3;
+    if (urgencyLevel !== undefined && urgencyLevel !== null && urgencyLevel !== '') {
+      const MinHeap = require('../dsa/MinHeap');
+      validatedUrgency = MinHeap.validateUrgency(urgencyLevel);
+    }
+
     appointment.status = 'in-queue';
+    appointment.urgencyLevel = validatedUrgency;
     await appointment.save();
 
-    const doctorId = appointment.doctor._id;
-    const patientUser = appointment.patient;
-
-    const currentQueue = queueManager.toSortedList(doctorId);
-    const basePosition = currentQueue.length + 1;
+    const doctorId = appointment.doctor?._id || appointment.doctor;
+    const patientUser = appointment.patient || {};
+    const patientUserId = patientUser._id || appointment.patient;
 
     // Check if QueueEntry exists, or create new one
     let queueEntry = await QueueEntry.findOne({ appointmentId: appointment._id });
@@ -263,16 +305,21 @@ const checkInAppointment = async (req, res) => {
       queueEntry = await QueueEntry.create({
         appointmentId: appointment._id,
         doctorId,
-        patientId: patientUser._id,
-        basePosition,
+        patientId: patientUserId,
+        urgencyLevel: validatedUrgency,
+        urgencyAssignedBy: req.user ? req.user._id : undefined,
+        urgencyAssignedAt: new Date(),
         isEmergency: appointment.isEmergency,
-        isSeniorCitizen: patientUser.isSeniorCitizen,
+        isSeniorCitizen: Boolean(patientUser.isSeniorCitizen),
         joinedAt: new Date(),
         status: 'waiting'
       });
     } else {
       queueEntry.status = 'waiting';
       queueEntry.joinedAt = new Date();
+      queueEntry.urgencyLevel = validatedUrgency;
+      queueEntry.urgencyAssignedBy = req.user ? req.user._id : undefined;
+      queueEntry.urgencyAssignedAt = new Date();
       queueEntry.isEmergency = appointment.isEmergency;
       await queueEntry.save();
     }
@@ -282,13 +329,15 @@ const checkInAppointment = async (req, res) => {
       queueEntryId: queueEntry._id,
       appointmentId: appointment._id,
       doctorId,
-      patientId: patientUser._id,
-      patientName: patientUser.name,
-      patientPhone: patientUser.phone,
+      patientId: patientUserId,
+      patientName: patientUser.name || 'Patient',
+      patientPhone: patientUser.phone || '',
+      urgencyLevel: validatedUrgency,
+      urgencyAssignedBy: req.user ? (req.user.name || req.user.role) : 'Staff',
+      urgencyAssignedAt: queueEntry.urgencyAssignedAt,
       isEmergency: appointment.isEmergency,
       isSeniorCitizen: Boolean(patientUser.isSeniorCitizen),
       joinedAt: queueEntry.joinedAt,
-      basePosition,
       status: 'waiting'
     };
 
@@ -300,6 +349,7 @@ const checkInAppointment = async (req, res) => {
     emitPatientStatusChange(patientUser._id, {
       appointmentId: appointment._id,
       status: 'in-queue',
+      urgencyLevel: validatedUrgency,
       queuePosition: queueManager.getPatientPosition(doctorId, appointment._id)
     });
 
@@ -375,7 +425,11 @@ const getMyAppointments = async (req, res) => {
       query.patient = req.user._id;
     } else if (req.user.role === 'doctor') {
       const doctor = await Doctor.findOne({ user: req.user._id });
-      if (doctor) query.doctor = doctor._id;
+      if (doctor) {
+        query = { $or: [{ doctor: doctor._id }, { patient: req.user._id }] };
+      } else {
+        query.patient = req.user._id;
+      }
     }
     if (req.query.date) {
       query.date = req.query.date;

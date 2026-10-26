@@ -17,3 +17,6 @@ backend/dist/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Archives and backup files
+*.zip

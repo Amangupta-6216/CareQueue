@@ -207,6 +207,17 @@ export const PatientDashboard = () => {
             <span className="text-xs text-slate-400 hidden sm:inline">Auto-updating via Socket.io</span>
           </div>
 
+          {/* Queue Priority Explanation for Patients */}
+          <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/80 text-xs text-slate-600 flex items-start gap-2.5">
+            <Activity className="w-4 h-4 text-[#D87070] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-slate-800">Queue Order & Priority Policy</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Queue positions are prioritized strictly by clinical urgency level and arrival timestamp. Your position may dynamically adjust if authorized clinical staff reassess urgency.
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeAppointments.map(apt => {
               const pos = apt.queuePosition;
@@ -244,6 +255,7 @@ export const PatientDashboard = () => {
                     <div>
                       <span className="text-slate-500 block text-[10px] uppercase font-bold">Estimated Wait</span>
                       <span className="text-[#D87070] font-bold">{estWait !== null ? `~${estWait} mins` : 'Check in to see wait'}</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Subject to urgent triage</span>
                     </div>
                   </div>
 

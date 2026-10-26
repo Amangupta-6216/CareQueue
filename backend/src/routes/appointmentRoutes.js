@@ -15,11 +15,11 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post('/book', authorize('patient', 'receptionist', 'admin'), bookAppointment);
-router.post('/walk-in', authorize('receptionist', 'admin'), registerWalkIn);
-router.put('/:id/check-in', authorize('patient', 'receptionist', 'admin'), checkInAppointment);
-router.put('/:id/cancel', authorize('patient', 'receptionist', 'admin'), cancelAppointment);
-router.put('/:id/reschedule', authorize('patient', 'receptionist', 'admin'), rescheduleAppointment);
+router.post('/book', authorize('patient', 'doctor', 'receptionist', 'admin'), bookAppointment);
+router.post('/walk-in', authorize('receptionist', 'doctor', 'admin'), registerWalkIn);
+router.put('/:id/check-in', authorize('patient', 'doctor', 'receptionist', 'admin'), checkInAppointment);
+router.put('/:id/cancel', authorize('patient', 'doctor', 'receptionist', 'admin'), cancelAppointment);
+router.put('/:id/reschedule', authorize('patient', 'doctor', 'receptionist', 'admin'), rescheduleAppointment);
 router.get('/my', getMyAppointments);
 router.get('/doctor/:doctorId', authorize('doctor', 'receptionist', 'admin'), getDoctorAppointments);
 

@@ -59,12 +59,18 @@ const getLiveQueue = async (req, res) => {
 
     const sortedQueue = queueManager.toSortedList(doctorId);
 
-    // Calculate estimated wait times for each patient in queue
-    const queueWithEstimates = sortedQueue.map((item, index) => ({
-      ...item,
-      position: index + 1,
-      estimatedWaitMinutes: index * AVG_CONSULTATION_MINS
-    }));
+    // Calculate estimated wait times and elapsed waiting duration for each patient in queue
+    const now = Date.now();
+    const queueWithEstimates = sortedQueue.map((item, index) => {
+      const joinedTime = new Date(item.joinedAt || now).getTime();
+      const waitDurationMinutes = Math.max(0, Math.floor((now - joinedTime) / (1000 * 60)));
+      return {
+        ...item,
+        position: index + 1,
+        estimatedWaitMinutes: index * AVG_CONSULTATION_MINS,
+        waitDurationMinutes
+      };
+    });
 
     // Find currently in-progress patient if any
     const inProgressEntry = await QueueEntry.findOne({
@@ -73,6 +79,7 @@ const getLiveQueue = async (req, res) => {
     })
       .populate('patientId', 'name phone isSeniorCitizen')
       .populate('appointmentId')
+      .populate('urgencyAssignedBy', 'name role')
       .lean();
 
     // Calculate patients seen for the specified date
@@ -102,7 +109,7 @@ const getLiveQueue = async (req, res) => {
   }
 };
 
-// @desc    Advance queue / Call next patient for consultation
+// @desc    Advance queue / Call next patient for consultation (Concurrency-Safe)
 // @route   PUT /api/queue/:doctorId/next or POST /api/queue/:doctorId/next
 // @access  Doctor / Admin
 const advanceNextPatient = async (req, res) => {
@@ -129,13 +136,31 @@ const advanceNextPatient = async (req, res) => {
       });
     }
 
-    // 2. Extract next patient with lowest priorityScore (highest urgency) from MinHeap
-    const nextPatientNode = queueManager.getNextPatient(doctorId);
+    // 2. Concurrency-safe selection of next patient from MinHeap
+    let nextPatientNode = null;
+    let claimedEntry = null;
+
+    while (true) {
+      nextPatientNode = queueManager.getNextPatient(doctorId);
+      if (!nextPatientNode) break;
+
+      // Atomically transition QueueEntry from 'waiting' to 'in-progress'
+      claimedEntry = await QueueEntry.findOneAndUpdate(
+        { _id: nextPatientNode.queueEntryId, status: 'waiting' },
+        { status: 'in-progress' },
+        { new: true }
+      );
+
+      if (claimedEntry) {
+        break;
+      }
+      // If claimedEntry is null, this patient was claimed or updated concurrently; try next in heap.
+    }
 
     // Update seen count
     const seenCount = await getSeenCountForDate(doctorId);
 
-    if (!nextPatientNode) {
+    if (!claimedEntry || !nextPatientNode) {
       // Queue is now empty
       const updatedQueue = queueManager.toSortedList(doctorId);
       emitQueueUpdate(doctorId, updatedQueue, { seenToday: seenCount });
@@ -146,11 +171,6 @@ const advanceNextPatient = async (req, res) => {
         queue: updatedQueue
       });
     }
-
-    // 3. Update status of next patient to 'in-progress'
-    await QueueEntry.findByIdAndUpdate(nextPatientNode.queueEntryId, {
-      status: 'in-progress'
-    });
 
     const updatedAppointment = await Appointment.findByIdAndUpdate(
       nextPatientNode.appointmentId,
@@ -288,7 +308,65 @@ const markNoShow = async (req, res) => {
   }
 };
 
-// @desc    Toggle emergency status on a waiting patient (bumps priority score)
+// @desc    Update staff-assigned urgency level of a waiting patient (1 Critical, 2 Urgent, 3 Standard)
+// @route   PUT /api/queue/:doctorId/urgency/:appointmentId
+// @access  Doctor / Receptionist / Admin
+const updatePatientUrgency = async (req, res) => {
+  try {
+    const { doctorId, appointmentId } = req.params;
+    const { urgencyLevel } = req.body;
+
+    let validatedUrgency;
+    try {
+      const MinHeap = require('../dsa/MinHeap');
+      validatedUrgency = MinHeap.validateUrgency(urgencyLevel);
+    } catch (valErr) {
+      return res.status(400).json({ message: valErr.message });
+    }
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    appointment.urgencyLevel = validatedUrgency;
+    await appointment.save();
+
+    const queueEntry = await QueueEntry.findOneAndUpdate(
+      { appointmentId, status: { $in: ['waiting', 'in-progress'] } },
+      {
+        urgencyLevel: validatedUrgency,
+        urgencyAssignedBy: req.user._id,
+        urgencyAssignedAt: new Date()
+      },
+      { new: true }
+    ).populate('urgencyAssignedBy', 'name role');
+
+    // Update in-memory MinHeap
+    queueManager.updatePatientUrgency(doctorId, appointmentId, validatedUrgency);
+
+    const updatedQueue = queueManager.toSortedList(doctorId);
+    emitQueueUpdate(doctorId, updatedQueue);
+    emitPatientStatusChange(appointment.patient, {
+      appointmentId,
+      status: appointment.status,
+      urgencyLevel: validatedUrgency,
+      queuePosition: queueManager.getPatientPosition(doctorId, appointmentId)
+    });
+
+    res.json({
+      message: `Urgency level updated to Level ${validatedUrgency}`,
+      urgencyLevel: validatedUrgency,
+      queueEntry,
+      queue: updatedQueue
+    });
+  } catch (error) {
+    console.error('updatePatientUrgency error:', error);
+    res.status(500).json({ message: 'Error updating patient urgency level' });
+  }
+};
+
+// @desc    Toggle emergency metadata status on a waiting patient
 // @route   PUT /api/queue/:doctorId/emergency/:appointmentId
 // @access  Receptionist / Admin
 const toggleEmergencyBump = async (req, res) => {
@@ -310,24 +388,19 @@ const toggleEmergencyBump = async (req, res) => {
       await queueEntry.save();
     }
 
-    // Re-heap doctor queue with updated emergency node
-    const heapNode = {
-      queueEntryId: queueEntry?._id,
-      appointmentId: appointment._id,
-      doctorId,
-      patientId: appointment.patient,
-      isEmergency: Boolean(isEmergency),
-      joinedAt: queueEntry ? queueEntry.joinedAt : new Date(),
-      status: 'waiting'
-    };
-
-    queueManager.removeFromQueue(doctorId, appointmentId);
-    queueManager.addToQueue(doctorId, heapNode);
+    // Update heap node metadata (without score calculation or priority override)
+    const heap = queueManager.getOrCreateQueue(doctorId);
+    const existingNode = heap.heap.find(node => 
+      node.appointmentId && node.appointmentId.toString() === appointmentId.toString()
+    );
+    if (existingNode) {
+      existingNode.isEmergency = Boolean(isEmergency);
+    }
 
     const updatedQueue = queueManager.toSortedList(doctorId);
     emitQueueUpdate(doctorId, updatedQueue);
 
-    res.json({ message: 'Emergency status updated', queue: updatedQueue });
+    res.json({ message: 'Emergency metadata status updated', queue: updatedQueue });
   } catch (error) {
     console.error('toggleEmergencyBump error:', error);
     res.status(500).json({ message: 'Error updating emergency status' });
@@ -339,6 +412,7 @@ module.exports = {
   advanceNextPatient,
   markDone,
   markNoShow,
+  updatePatientUrgency,
   toggleEmergencyBump,
   getSeenCountForDate
 };

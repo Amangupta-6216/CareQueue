@@ -135,6 +135,10 @@ export const Navbar = () => {
                   <span>Dashboard</span>
                 </Link>
 
+                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#FDF0F2] text-[#D87070] border border-[#F6B2B2]/50 hidden md:inline-block">
+                  {user.role}
+                </span>
+
                 {/* Notification Bell */}
                 <div className="relative">
                   <button

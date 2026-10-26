@@ -163,6 +163,16 @@ export const DoctorDashboard = () => {
     }
   };
 
+  const handleUrgencyChange = async (doctorId, appointmentId, newUrgencyLevel) => {
+    try {
+      await api.put(`/queue/${doctorId}/urgency/${appointmentId}`, { urgencyLevel: newUrgencyLevel });
+      setMessage({ type: 'success', text: `Patient urgency updated to Level ${newUrgencyLevel}.` });
+      fetchLiveQueue(doctorId, selectedDate);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Error updating urgency level.' });
+    }
+  };
+
   const handleLeaveRequest = async (e) => {
     e.preventDefault();
     if (!doctorInfo) return;
@@ -325,6 +335,7 @@ export const DoctorDashboard = () => {
 
               <LiveQueueList
                 queue={queue}
+                onUrgencyChange={handleUrgencyChange}
                 onNoShow={handleNoShow}
                 canManage={true}
               />

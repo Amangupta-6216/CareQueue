@@ -17,13 +17,19 @@ const queueEntrySchema = new mongoose.Schema(
       ref: 'User',
       required: true
     },
-    priorityScore: {
+    urgencyLevel: {
       type: Number,
-      default: 0
+      enum: [1, 2, 3], // Level 1 (Critical), Level 2 (Urgent), Level 3 (Standard)
+      default: 3,
+      required: true
     },
-    basePosition: {
-      type: Number,
-      default: 1
+    urgencyAssignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    urgencyAssignedAt: {
+      type: Date,
+      default: Date.now
     },
     isEmergency: {
       type: Boolean,
